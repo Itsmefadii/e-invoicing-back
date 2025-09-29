@@ -6,16 +6,14 @@ export class RolePermission extends Model {}
 RolePermission.init(
   {
     id: {
-      type: DataTypes.STRING(32),
+      type: DataTypes.INTEGER,
       primaryKey: true,
     },
-    role: {
-      type: DataTypes.ENUM('admin', 'seller', 'seller_user'),
-      allowNull: false,
+    roleId: {
+      type: DataTypes.INTEGER
     },
-    permissionKey: {
+    permissionId: {
       type: DataTypes.STRING(64),
-      allowNull: false,
     },
   },
   { sequelize, modelName: 'RolePermission', tableName: 'role_permissions' }

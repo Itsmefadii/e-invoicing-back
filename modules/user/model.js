@@ -6,16 +6,16 @@ export class User extends Model {}
 User.init(
   {
     id: {
-      type: DataTypes.STRING(32),
+      type: DataTypes.STRING,
       primaryKey: true,
     },
-    ntn: {
-      type: DataTypes.STRING(64),
+    roleId: {
+      type: DataTypes.INTEGER,
       unique: true,
       allowNull: false,
     },
     email: {
-      type: DataTypes.STRING(191),
+      type: DataTypes.STRING,
       allowNull: true,
       unique: true,
     },
@@ -23,8 +23,8 @@ User.init(
       type: DataTypes.STRING(191),
       allowNull: false,
     },
-    role: {
-      type: DataTypes.ENUM('admin', 'seller', 'seller_user'),
+    sellerId: {
+      type: DataTypes.INTEGER,
       allowNull: false,
     },
     permissions: {
