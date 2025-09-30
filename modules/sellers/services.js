@@ -6,40 +6,63 @@ import { v4 as uuidv4 } from 'uuid';
 
 export const createSellerService = async (req) => {
     try {
-        const { email, name, password } = req.body;
+        const { user, seller } = req.body;
         
         // Check if email already exists
-        const existingUser = await User.findOne({ where: { email } });
+        const existingUser = await User.findOne({ where: { email: user.email } });
+
         if (existingUser) {
             throw new Error('Email already exists');
         }
 
         // Create seller
         const sellerId = uuidv4().replace(/-/g, '').slice(0, 32);
-        await Seller.create({ 
-            id: sellerId, 
-            name,
-            email,
+        
+        // Generate sellerCode with 5 zeros before the ID
+        const sellerCode = sellerId.slice(-6).padStart(6, '0');
+        
+        const createSeller = await Seller.create({
+            id: sellerId,
+            sellerCode,
+            businessName: seller.businessName,
+            ntnCnic: seller.ntnCnic,
+            businessNatureId: seller.businessNatureId,
+            industryId: seller.industryId,
+            address1: seller.address1,
+            address2: seller.address2,
+            city: seller.city,
+            state: seller.state,
+            postalCode: seller.postalCode,
+            businessPhone: seller.businessPhone,
+            businessEmail: seller.businessEmail,
+            fbrSandBoxToken: seller.fbrSandBoxToken,
+            fbrProdToken: seller.fbrProdToken,
+            // logoUrl: seller.logoUrl,
             isActive: true
         });
+
+        if(!createSeller){
+            throw new Error('Failed to create seller');
+        }
 
         // Create user for seller
         const userId = uuidv4().replace(/-/g, '').slice(0, 32);
         await User.create({ 
-            id: userId, 
-            email, 
-            name, 
+            id: userId,
+            email: user.email, 
+            name: user.name, 
             role: ROLE.SELLER, 
             permissions: ['dashboard:view', 'invoices:view', 'reports:view', 'settings:view'],
-            passwordHash: await hashPassword(password), 
+            passwordHash: await hashPassword(user.password), 
             sellerId 
         });
 
         return { 
             id: userId, 
             sellerId,
-            email,
-            name,
+            sellerCode,
+            email: user.email,
+            name: user.name,
             role: ROLE.SELLER
         };
     } catch (error) {
