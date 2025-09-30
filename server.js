@@ -7,6 +7,7 @@ import { hashPassword } from './lib/security/hash.js';
 import { ROLE } from './lib/auth/guards.js';
 import { User } from './modules/user/model.js';
 import { verifyJwt } from './lib/security/jwt.js';
+import { requireAuth } from './lib/auth/middleware.js';
 import { pathToFileURL } from 'url';
 
 export const buildServer = async () => {
@@ -20,16 +21,8 @@ export const buildServer = async () => {
     credentials: true, // Allow cookies and authorization headers
   });
   
-  // Global middleware: attach user info if Authorization Bearer token is present
-  fastify.addHook('preHandler', (request, reply, done) => {
-    const header = request.headers['authorization'] || '';
-    const token = header.startsWith('Bearer ') ? header.slice(7) : null;
-    if (token) {
-      const decoded = verifyJwt(token);
-      if (decoded) request.user = decoded;
-    }
-    done();
-  });
+  // Global authentication middleware: require token for all routes except login
+  fastify.addHook('preHandler', requireAuth);
   
   fastify.register(allRoutes, { prefix: '/api/v1' });
   return fastify;
@@ -56,7 +49,7 @@ const start = async () => {
 
   try {
     await sequelize.authenticate();
-    await sequelize.sync();
+    // await sequelize.sync();
     await server.listen({ port, host });
     server.log.info(`server listening on http://${host}:${port}`);
   } catch (err) {
