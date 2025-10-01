@@ -19,18 +19,19 @@ User.init(
       allowNull: true,
       unique: true,
     },
-    name: {
+    firstName: {
+      type: DataTypes.STRING(191),
+      allowNull: false,
+    },
+    lastName: {
       type: DataTypes.STRING(191),
       allowNull: false,
     },
     sellerId: {
       type: DataTypes.INTEGER,
-      allowNull: false,
     },
-    permissions: {
-      type: DataTypes.JSON,
-      allowNull: false,
-      defaultValue: [],
+    userTypeId: {
+      type: DataTypes.INTEGER,
     },
     passwordHash: {
       type: DataTypes.STRING(191),

@@ -2,6 +2,7 @@ import { verifyPassword } from '../../lib/security/hash.js';
 import { signJwt } from '../../lib/security/jwt.js';
 import { User } from '../user/model.js';
 import { Role } from '../permission/model.role.js';
+import { Seller } from '../user/model.seller.js';
 import { getPermissionsForRole } from '../permission/services.js';
 
 export async function login({ email, password }) {
@@ -49,13 +50,25 @@ export async function login({ email, password }) {
     // Fetch permissions for the user's role
     const permissions = await getPermissionsForRole(user.roleId);
     
+    // Fetch seller data if user has sellerId
+    let sellerData = null;
+    if (user.sellerId) {
+      try {
+        sellerData = await Seller.findByPk(user.sellerId);
+      } catch (error) {
+        console.error('Error fetching seller data:', error);
+        // Continue without seller data if there's an error
+      }
+    }
+    
     // Generate JWT token
     const token = signJwt({
       sub: user.id,
       ntn: user.ntn,
       roleId: user.roleId,
-      roleName: user.role?.name,
+      roleName: user.role?.roleName,
       sellerId: user.sellerId || null,
+      sellerCode: sellerData?.sellerCode || null,
     });
     
     return {
@@ -64,11 +77,29 @@ export async function login({ email, password }) {
         id: user.id,
         ntn: user.ntn,
         email: user.email,
-        name: user.name,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        fullName: `${user.firstName} ${user.lastName}`,
         roleId: user.roleId,
-        roleName: user.role?.name,
+        roleName: user.role?.roleName,
         roleDescription: user.role?.description,
         sellerId: user.sellerId || null,
+        sellerData: sellerData ? {
+          id: sellerData.id,
+          sellerCode: sellerData.sellerCode,
+          businessName: sellerData.businessName,
+          ntnCnic: sellerData.ntnCnic,
+          businessNatureId: sellerData.businessNatureId,
+          industryId: sellerData.industryId,
+          address1: sellerData.address1,
+          address2: sellerData.address2,
+          city: sellerData.city,
+          stateId: sellerData.stateId,
+          postalCode: sellerData.postalCode,
+          businessPhone: sellerData.businessPhone,
+          businessEmail: sellerData.businessEmail,
+          isActive: sellerData.isActive
+        } : null,
         permissions: permissions,
       },
     };

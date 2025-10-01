@@ -4,21 +4,21 @@ import { User } from './model.js';
 import { Seller } from './model.seller.js';
 import { v4 as uuidv4 } from 'uuid';
 
-async function createSeller({ email, name, password }) {
+async function createSeller({ email, firstName, lastName, password }) {
   const exists = await User.findOne({ where: { email } });
   if (exists) throw new Error('Email already used');
   const sellerId = uuidv4().replace(/-/g, '').slice(0, 32);
-  await Seller.create({ id: sellerId, name });
+  await Seller.create({ id: sellerId, name: `${firstName} ${lastName}` });
   const userId = uuidv4().replace(/-/g, '').slice(0, 32);
-  await User.create({ id: userId, email, name, role: ROLE.SELLER, permissions: ['dashboard:view','invoices:view','reports:view','settings:view'], passwordHash: await hashPassword(password), sellerId });
+  await User.create({ id: userId, email, firstName, lastName, roleId: ROLE.SELLER, passwordHash: await hashPassword(password), sellerId });
   return { id: userId, sellerId };
 }
 
-async function createSellerUser({ sellerId, email, name, password, permissions = [] }) {
+async function createSellerUser({ sellerId, email, firstName, lastName, password }) {
   const exists = await User.findOne({ where: { email } });
   if (exists) throw new Error('Email already used');
   const userId = uuidv4().replace(/-/g, '').slice(0, 32);
-  await User.create({ id: userId, email, name, role: ROLE.SELLER_USER, permissions, passwordHash: await hashPassword(password), sellerId });
+  await User.create({ id: userId, email, firstName, lastName, roleId: ROLE.SELLER_USER, passwordHash: await hashPassword(password), sellerId });
   return { id: userId };
 }
 

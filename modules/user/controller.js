@@ -13,14 +13,14 @@ export async function adminCreateSellerHandler(request, reply) {
       return sendValidationError(reply, 'Request body is required');
     }
 
-    const { email, name, password } = request.body;
+    const { email, firstName, lastName, password } = request.body;
     
     // Validate required fields
-    if (!email || !name || !password) {
-      return sendValidationError(reply, 'Email, name, and password are required');
+    if (!email || !firstName || !lastName || !password) {
+      return sendValidationError(reply, 'Email, firstName, lastName, and password are required');
     }
 
-    const result = await createSeller({ email, name, password });
+    const result = await createSeller({ email, firstName, lastName, password });
     return sendCreated(reply, result, 'Seller created successfully');
   } catch (error) {
     console.error('Create seller error:', error);
@@ -43,14 +43,14 @@ export async function sellerCreateUserHandler(request, reply) {
     }
 
     const sellerId = request.user.sellerId;
-    const { email, name, password, permissions } = request.body;
+    const { email, firstName, lastName, password } = request.body;
     
     // Validate required fields
-    if (!email || !name || !password) {
-      return sendValidationError(reply, 'Email, name, and password are required');
+    if (!email || !firstName || !lastName || !password) {
+      return sendValidationError(reply, 'Email, firstName, lastName, and password are required');
     }
 
-    const result = await createSellerUser({ sellerId, email, name, password, permissions });
+    const result = await createSellerUser({ sellerId, email, firstName, lastName, password });
     return sendCreated(reply, result, 'User created successfully');
   } catch (error) {
     console.error('Create user error:', error);

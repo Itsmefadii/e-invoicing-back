@@ -3,6 +3,7 @@ import { User } from '../user/model.js';
 import { hashPassword } from '../../lib/security/hash.js';
 import { ROLE } from '../../lib/auth/guards.js';
 import { v4 as uuidv4 } from 'uuid';
+import { sequelize } from '../../lib/db/sequelize.js';
 
 export const createSellerService = async (req) => {
     try {
@@ -14,16 +15,8 @@ export const createSellerService = async (req) => {
         if (existingUser) {
             throw new Error('Email already exists');
         }
-
-        // Create seller
-        const sellerId = uuidv4().replace(/-/g, '').slice(0, 32);
-        
-        // Generate sellerCode with 5 zeros before the ID
-        const sellerCode = sellerId.slice(-6).padStart(6, '0');
         
         const createSeller = await Seller.create({
-            id: sellerId,
-            sellerCode,
             businessName: seller.businessName,
             ntnCnic: seller.ntnCnic,
             businessNatureId: seller.businessNatureId,
@@ -31,13 +24,12 @@ export const createSellerService = async (req) => {
             address1: seller.address1,
             address2: seller.address2,
             city: seller.city,
-            state: seller.state,
+            stateId: seller.stateId,
             postalCode: seller.postalCode,
             businessPhone: seller.businessPhone,
             businessEmail: seller.businessEmail,
             fbrSandBoxToken: seller.fbrSandBoxToken,
             fbrProdToken: seller.fbrProdToken,
-            // logoUrl: seller.logoUrl,
             isActive: true
         });
 
@@ -45,25 +37,34 @@ export const createSellerService = async (req) => {
             throw new Error('Failed to create seller');
         }
 
-        // Create user for seller
-        const userId = uuidv4().replace(/-/g, '').slice(0, 32);
-        await User.create({ 
-            id: userId,
+        console.log("sellerId", createSeller.id);
+        const sellerId = createSeller.id;
+        // Generate sellerCode with 5 zeros before the ID
+        const sellerCode = sellerId.toString().slice(-6).padStart(6, '0');
+
+        await createSeller.update({ sellerCode });
+
+        const createUser = await User.create({ 
             email: user.email, 
-            name: user.name, 
-            role: ROLE.SELLER, 
-            permissions: ['dashboard:view', 'invoices:view', 'reports:view', 'settings:view'],
+            firstName: user.firstName,
+            lastName: user.lastName,
+            roleId: user.roleId, 
             passwordHash: await hashPassword(user.password), 
-            sellerId 
+            sellerId: sellerId
+        });
+
+        const findSeller = await Seller.findOne({ 
+            where: { id: createSeller.id },
+            include: [{
+                model: User,
+                as: 'users',
+                attributes: ['id', 'email', 'firstName', 'lastName', 'isActive']
+            }]
         });
 
         return { 
-            id: userId, 
-            sellerId,
-            sellerCode,
-            email: user.email,
-            name: user.name,
-            role: ROLE.SELLER
+            findSeller,
+            createUser
         };
     } catch (error) {
         throw new Error(`Failed to create seller: ${error.message}`);
@@ -77,7 +78,7 @@ export const fetchSellersService = async (req) => {
             include: [{
                 model: User,
                 as: 'users',
-                attributes: ['id', 'email', 'name', 'isActive']
+                attributes: ['id', 'email', 'firstName', 'lastName', 'isActive']
             }]
         });
         return sellers;

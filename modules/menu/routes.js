@@ -11,7 +11,7 @@ export default function menuRoutes(fastify, options, done) {
       if (req.method == "GET") {
         try {
           const perms = Array.isArray(req.user?.permissions) ? req.user.permissions : [];
-          const isAdmin = req.user?.role === 'admin' || perms.includes('*');
+          const isAdmin = req.user?.roleName === 'admin' || perms.includes('*');
           const items = isAdmin
             ? MENU_ITEMS
             : MENU_ITEMS.filter((item) => perms.includes(item.permission));

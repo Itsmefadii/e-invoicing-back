@@ -4,8 +4,13 @@ import { sendCreated, sendError, sendSuccess, sendNotFoundError } from "../../li
 
 export const createSellerController = async (req, reply) => {
     try {
-        if(req.user.roleName !== ROLE.ADMIN){
+        console.log(req.user.roleName);
+        if(req.user.roleName !== "Admin"){
             return sendError(reply, 'You are not authorized to create a seller', 403);
+        }
+
+        if(!req.body){
+            return sendError(reply, 'Request body is required', 400);
         }
 
         const result = await createSellerService(req)
