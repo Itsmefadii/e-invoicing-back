@@ -4,6 +4,9 @@ import { User } from '../user/model.js';
 import { Role } from '../permission/model.role.js';
 import { Seller } from '../user/model.seller.js';
 import { getPermissionsForRole } from '../permission/services.js';
+import { Industry } from '../systemConfigs/model/model.industry.js';
+import { BusinessNature } from '../systemConfigs/model/model.businessNature.js';
+import { State } from '../systemConfigs/model/model.state.js';
 
 export async function login({ email, password }) {
   try {
@@ -52,9 +55,21 @@ export async function login({ email, password }) {
     
     // Fetch seller data if user has sellerId
     let sellerData = null;
+    let findIndustry = null;
+    let findBusinessNature = null;
+    let findState = null;
     if (user.sellerId) {
       try {
         sellerData = await Seller.findByPk(user.sellerId);
+        findIndustry = await Industry.findByPk(sellerData.industryId, {
+          attributes: ['industryName']
+        });
+        findBusinessNature = await BusinessNature.findByPk(sellerData.businessNatureId, {
+          attributes: ['businessNature']
+        });
+        findState = await State.findByPk(sellerData.stateId, {
+          attributes: ['state']
+        });
       } catch (error) {
         console.error('Error fetching seller data:', error);
         // Continue without seller data if there's an error
@@ -70,7 +85,7 @@ export async function login({ email, password }) {
       sellerId: user.sellerId || null,
       sellerCode: sellerData?.sellerCode || null,
     });
-    
+   
     return {
       token,
       user: {
@@ -80,6 +95,7 @@ export async function login({ email, password }) {
         firstName: user.firstName,
         lastName: user.lastName,
         fullName: `${user.firstName} ${user.lastName}`,
+        phoneNumber: user.phoneNumber,
         roleId: user.roleId,
         roleName: user.role?.roleName,
         roleDescription: user.role?.description,
@@ -90,14 +106,20 @@ export async function login({ email, password }) {
           businessName: sellerData.businessName,
           ntnCnic: sellerData.ntnCnic,
           businessNatureId: sellerData.businessNatureId,
+          businessNature: findBusinessNature.businessNature,
           industryId: sellerData.industryId,
+          industryName: findIndustry.industryName,
           address1: sellerData.address1,
           address2: sellerData.address2,
           city: sellerData.city,
           stateId: sellerData.stateId,
+          state: findState.state,
           postalCode: sellerData.postalCode,
           businessPhone: sellerData.businessPhone,
           businessEmail: sellerData.businessEmail,
+          fbrSandBoxToken: sellerData.fbrSandBoxToken,
+          fbrProdToken: sellerData.fbrProdToken,
+          logoUrl: sellerData.logoUrl,
           isActive: sellerData.isActive
         } : null,
         permissions: permissions,
