@@ -48,9 +48,8 @@ InvoiceItem.init(
       allowNull: false,
     },
     salesTaxApplicable: {
-      type: DataTypes.BOOLEAN,
-      allowNull: false,
-      defaultValue: false,
+      type: DataTypes.DECIMAL(12, 2),
+      defaultValue: 0.00
     },
     salesTaxWithheldAtSource: {
       type: DataTypes.DECIMAL(12, 2),

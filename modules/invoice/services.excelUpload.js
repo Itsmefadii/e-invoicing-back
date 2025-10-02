@@ -1,5 +1,4 @@
 import * as XLSX from 'xlsx';
-import { v4 as uuidv4 } from 'uuid';
 import { Invoice } from './model.js';
 import { InvoiceItem } from './model.invoiceItem.js';
 import { sequelize } from '../../lib/db/sequelize.js';
@@ -201,6 +200,40 @@ export function parseExcelFile(fileBuffer) {
 }
 
 /**
+ * Validate that invoiceRefNo values don't already exist for the seller
+ * @param {Array} invoiceGroups - Parsed invoice data
+ * @param {number} sellerId - Seller ID
+ * @returns {void}
+ * @throws {Error} If any invoiceRefNo already exists
+ */
+export async function validateInvoiceRefNumbers(invoiceGroups, sellerId) {
+  try {
+    // Extract all invoiceRefNo values from the Excel data
+    const invoiceRefNumbers = invoiceGroups.map(group => group.master.invoiceRefNo);
+    
+    if (invoiceRefNumbers.length === 0) {
+      return; // No invoices to validate
+    }
+    
+    // Check if any of these invoiceRefNo values already exist for this seller
+    const existingInvoices = await Invoice.findAll({
+      where: {
+        sellerId: sellerId,
+        invoiceRefNo: invoiceRefNumbers
+      },
+      attributes: ['invoiceRefNo']
+    });
+    
+    if (existingInvoices.length > 0) {
+      const existingRefNumbers = existingInvoices.map(inv => inv.invoiceRefNo);
+      throw new Error(`The following invoice reference numbers already exist for this seller: ${existingRefNumbers.join(', ')}. Please use unique reference numbers.`);
+    }
+  } catch (error) {
+    throw new Error(`Invoice validation failed: ${error.message}`);
+  }
+}
+
+/**
  * Save invoice data to database
  * @param {Array} invoiceGroups - Parsed invoice data
  * @param {number} sellerId - Seller ID
@@ -272,6 +305,9 @@ export async function processExcelUpload(fileBuffer, sellerId) {
     if (invoiceGroups.length === 0) {
       throw new Error('No valid invoice data found in Excel file');
     }
+    
+    // Validate that invoiceRefNo values don't already exist for this seller
+    await validateInvoiceRefNumbers(invoiceGroups, sellerId);
     
     // Save to database
     const result = await saveInvoiceData(invoiceGroups, sellerId);

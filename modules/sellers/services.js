@@ -2,7 +2,6 @@ import { Seller } from '../user/model.seller.js';
 import { User } from '../user/model.js';
 import { hashPassword } from '../../lib/security/hash.js';
 import { ROLE } from '../../lib/auth/guards.js';
-import { v4 as uuidv4 } from 'uuid';
 import { sequelize } from '../../lib/db/sequelize.js';
 import { BusinessNature } from '../systemConfigs/model/model.businessNature.js';
 import { Industry } from '../systemConfigs/model/model.industry.js';

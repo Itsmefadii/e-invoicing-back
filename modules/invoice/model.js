@@ -61,6 +61,9 @@ Invoice.init(
       type: DataTypes.ENUM('pending', 'valid', 'submitted', 'invalid'),
       defaultValue: 'pending',
     },
+    fbrInvoiceNumber:{
+      type: DataTypes.STRING(200),
+    },
     createdAt: {
       type: DataTypes.DATE,
       allowNull: false,

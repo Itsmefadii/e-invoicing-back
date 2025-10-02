@@ -8,7 +8,7 @@ import {
 
 export async function listInvoicesHandler(request, reply) {
   try {
-    const items = await listInvoicesService();
+    const items = await listInvoicesService(request);
     return sendSuccess(reply, items, 'Invoices retrieved successfully');
   } catch (error) {
     console.error('List invoices error:', error);
