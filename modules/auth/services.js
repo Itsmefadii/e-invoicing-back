@@ -55,20 +55,24 @@ export async function login({ email, password }) {
     
     // Fetch seller data if user has sellerId
     let sellerData = null;
-    let findIndustry = null;
-    let findBusinessNature = null;
-    let findState = null;
     if (user.sellerId) {
       try {
-        sellerData = await Seller.findByPk(user.sellerId);
-        findIndustry = await Industry.findByPk(sellerData.industryId, {
-          attributes: ['industryName']
-        });
-        findBusinessNature = await BusinessNature.findByPk(sellerData.businessNatureId, {
-          attributes: ['businessNature']
-        });
-        findState = await State.findByPk(sellerData.stateId, {
-          attributes: ['state']
+        sellerData = await Seller.findByPk(user.sellerId, {
+          include: [{
+            model: BusinessNature,
+            as: 'businessNature',
+            attributes: ['businessNature']
+          },
+          {
+            model: Industry,
+            as: 'industry',
+            attributes: ['industryName']
+          },
+          {
+            model: State,
+            as: 'state',
+            attributes: ['state']
+          }]
         });
       } catch (error) {
         console.error('Error fetching seller data:', error);
@@ -106,14 +110,14 @@ export async function login({ email, password }) {
           businessName: sellerData.businessName,
           ntnCnic: sellerData.ntnCnic,
           businessNatureId: sellerData.businessNatureId,
-          businessNature: findBusinessNature.businessNature,
+          businessNature: sellerData.businessNature?.businessnature,
           industryId: sellerData.industryId,
-          industryName: findIndustry.industryName,
+          industryName: sellerData.industry?.industryName,
           address1: sellerData.address1,
           address2: sellerData.address2,
           city: sellerData.city,
           stateId: sellerData.stateId,
-          state: findState.state,
+          state: sellerData.state?.state,
           postalCode: sellerData.postalCode,
           businessPhone: sellerData.businessPhone,
           businessEmail: sellerData.businessEmail,

@@ -48,7 +48,7 @@ export const updateSellerController = async (req, reply) => {
 
 export const fetchSellersController = async (req, reply) => {
     try {
-        if(req.user.roleName !== ROLE.ADMIN){
+        if(req.user.roleName !== "Admin"){
             return sendError(reply, 'You are not authorized to view sellers', 403);
         }
 

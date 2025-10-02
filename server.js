@@ -49,7 +49,6 @@ const start = async () => {
 
   try {
     await sequelize.authenticate();
-    // await sequelize.sync();
     await server.listen({ port, host });
     server.log.info(`server listening on http://${host}:${port}`);
   } catch (err) {

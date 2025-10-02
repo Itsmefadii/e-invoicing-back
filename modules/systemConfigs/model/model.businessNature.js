@@ -10,7 +10,7 @@ BusinessNature.init(
       primaryKey: true,
       autoIncrement: true,
     },
-    businessNature: {
+    businessnature: {
       type: DataTypes.STRING,
       allowNull: false,
     },

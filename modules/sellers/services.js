@@ -4,6 +4,9 @@ import { hashPassword } from '../../lib/security/hash.js';
 import { ROLE } from '../../lib/auth/guards.js';
 import { v4 as uuidv4 } from 'uuid';
 import { sequelize } from '../../lib/db/sequelize.js';
+import { BusinessNature } from '../systemConfigs/model/model.businessNature.js';
+import { Industry } from '../systemConfigs/model/model.industry.js';
+import { State } from '../systemConfigs/model/model.state.js';
 
 export const createSellerService = async (req) => {
     try {
@@ -53,12 +56,27 @@ export const createSellerService = async (req) => {
             sellerId: sellerId
         });
 
-        const findSeller = await Seller.findOne({ 
+        const findSeller = await Seller.findOne({
             where: { id: createSeller.id },
             include: [{
                 model: User,
                 as: 'users',
                 attributes: ['id', 'email', 'firstName', 'lastName', 'isActive']
+            },
+            {
+                model: BusinessNature,
+                as: 'businessNature',
+                attributes: ['businessnature']
+            },
+            {
+                model: Industry,
+                as: 'industry',
+                attributes: ['industryName']
+            },
+            {
+                model: State,
+                as: 'state',
+                attributes: ['state']
             }]
         });
 
@@ -79,8 +97,33 @@ export const fetchSellersService = async (req) => {
                 model: User,
                 as: 'users',
                 attributes: ['id', 'email', 'firstName', 'lastName', 'isActive']
+            },
+            {
+                model: BusinessNature,
+                as: 'businessNature',
+                attributes: ['businessnature']
+            },
+            {
+                model: Industry,
+                as: 'industry',
+                attributes: ['industryName']
+            },
+            {
+                model: State,
+                as: 'state',
+                attributes: ['state']
             }]
         });
+
+        // const sellersData = sellers.map(seller => {
+        //     return {
+        //         ...seller,
+        //         businessNature: businessNatures.businessNature,
+        //         industry: industries.industryName,
+        //         state: states.state
+        //     }
+        // })
+
         return sellers;
     } catch (error) {
         throw new Error(`Failed to fetch sellers: ${error.message}`);
