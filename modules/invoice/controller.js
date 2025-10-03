@@ -1,4 +1,4 @@
-import { listInvoicesService, getInvoiceByIdService } from './services.js';
+import { listInvoicesService, getInvoiceByIdService, postInvoiceService } from './services.js';
 import { 
   sendSuccess, 
   sendValidationError,
@@ -34,6 +34,27 @@ export async function getInvoiceByIdHandler(request, reply) {
   } catch (error) {
     console.error('Get invoice error:', error);
     return sendError(reply, 'Failed to retrieve invoice. Please try again later.');
+  }
+}
+
+export async function postInvoiceHandler(request, reply) {
+  try {
+    const { invoiceIds } = request.body;
+    
+    if (!invoiceIds) {
+      return sendValidationError(reply, 'Invoice ID is required');
+    }
+
+    const item = await postInvoiceService(request, invoiceIds);
+    
+    if (!item) {
+      return sendNotFoundError(reply, 'Invoice not posted');
+    }
+
+    return sendSuccess(reply, item, 'Invoice posted successfully');
+  } catch (error) {
+    console.error('Post invoice error:', error);
+    return sendError(reply, 'Failed to post invoice. Please try again later.');
   }
 }
 

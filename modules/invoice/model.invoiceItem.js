@@ -88,6 +88,9 @@ InvoiceItem.init(
       type: DataTypes.STRING(20),
       allowNull: false,
     },
+    error: {
+      type: DataTypes.STRING(200),
+    },
     createdAt: {
       type: DataTypes.DATE,
       allowNull: false,
