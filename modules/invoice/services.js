@@ -291,7 +291,7 @@ async function fbrSubmitInvoice(invoice, token) {
 
   console.log("Invoice: ", invoice)
 
-  const response = await axios.post(`${process.env.FBR_API_URL}/postinvoicedata`, invoice,
+  const response = await axios.post(`${process.env.FBR_API_URL}/postinvoicedata_sb`, invoice,
     {
       headers: {
         "Content-Type": "application/json",
