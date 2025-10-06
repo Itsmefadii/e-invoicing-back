@@ -13,7 +13,13 @@ import {
   fetchStateById,
   createStateHandler,
   updateStateHandler,
-  deleteStateHandler
+  deleteStateHandler,
+  fetchAllHsCodes,
+  fetchHsCodeById,
+  createHsCodeHandler,
+  updateHsCodeHandler,
+  deleteHsCodeHandler,
+  populateHsCodesFromFBRHandler
 } from './controller.js';
 
 export async function systemConfigsRoutes(fastify, options) {
@@ -92,6 +98,42 @@ export async function systemConfigsRoutes(fastify, options) {
       if (req.method == "DELETE") {
         deleteStateHandler(req, reply);
       }
+    },
+  });
+
+  // HS Codes routes
+  fastify.route({
+    method: ["POST", "GET", "PUT", "DELETE"],
+    url: "/hs-codes/:id?",
+    handler: (req, reply) => {
+      console.log(req.method);
+      
+      if (req.method == "GET") {
+        if (req.params.id) {
+          fetchHsCodeById(req, reply);
+        } else {
+          fetchAllHsCodes(req, reply);
+        }
+      }
+      if (req.method == "POST") {
+        createHsCodeHandler(req, reply);
+      }
+      if (req.method == "PUT") {
+        updateHsCodeHandler(req, reply);
+      }
+      if (req.method == "DELETE") {
+        deleteHsCodeHandler(req, reply);
+      }
+    },
+  });
+
+  // FBR API population route
+  fastify.route({
+    method: "POST",
+    url: "/hs-codes/populate-from-fbr",
+    handler: (req, reply) => {
+      console.log('Populating HS codes from FBR API');
+      populateHsCodesFromFBRHandler(req, reply);
     },
   });
 }

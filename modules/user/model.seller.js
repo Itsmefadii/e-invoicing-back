@@ -46,6 +46,9 @@ Seller.init(
     businessEmail: {
       type: DataTypes.STRING  ,
     },
+    fbrTokenType: {
+      type: DataTypes.STRING  ,
+    },
     fbrSandBoxToken: {
       type: DataTypes.STRING  ,
     },

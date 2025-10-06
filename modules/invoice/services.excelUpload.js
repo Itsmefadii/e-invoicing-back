@@ -2,6 +2,7 @@ import * as XLSX from 'xlsx';
 import { Invoice } from './model.js';
 import { InvoiceItem } from './model.invoiceItem.js';
 import { sequelize } from '../../lib/db/sequelize.js';
+import { getInvoiceModelsFromUser } from '../../lib/utils/invoiceModels.js';
 
 /**
  * Parse Excel file and extract invoice data
@@ -203,11 +204,14 @@ export function parseExcelFile(fileBuffer) {
  * Validate that invoiceRefNo values don't already exist for the seller
  * @param {Array} invoiceGroups - Parsed invoice data
  * @param {number} sellerId - Seller ID
+ * @param {Object} user - User object containing fbrTokenType
  * @returns {void}
  * @throws {Error} If any invoiceRefNo already exists
  */
-export async function validateInvoiceRefNumbers(invoiceGroups, sellerId) {
+export async function validateInvoiceRefNumbers(invoiceGroups, sellerId, user) {
   try {
+    const { Invoice: InvoiceModel } = getInvoiceModelsFromUser(user);
+    
     // Extract all invoiceRefNo values from the Excel data
     const invoiceRefNumbers = invoiceGroups.map(group => group.master.invoiceRefNo);
     
@@ -216,7 +220,7 @@ export async function validateInvoiceRefNumbers(invoiceGroups, sellerId) {
     }
     
     // Check if any of these invoiceRefNo values already exist for this seller
-    const existingInvoices = await Invoice.findAll({
+    const existingInvoices = await InvoiceModel.findAll({
       where: {
         sellerId: sellerId,
         invoiceRefNo: invoiceRefNumbers
@@ -237,9 +241,11 @@ export async function validateInvoiceRefNumbers(invoiceGroups, sellerId) {
  * Save invoice data to database
  * @param {Array} invoiceGroups - Parsed invoice data
  * @param {number} sellerId - Seller ID
+ * @param {Object} user - User object containing fbrTokenType
  * @returns {Object} Result with created invoices and items
  */
-export async function saveInvoiceData(invoiceGroups, sellerId) {
+export async function saveInvoiceData(invoiceGroups, sellerId, user) {
+  const { Invoice: InvoiceModel, InvoiceItem: InvoiceItemModel } = getInvoiceModelsFromUser(user);
   const transaction = await sequelize.transaction();
   
   try {
@@ -253,7 +259,7 @@ export async function saveInvoiceData(invoiceGroups, sellerId) {
       const totalAmount = items.reduce((sum, item) => sum + item.totalValues, 0);
       
       // Create invoice
-      const invoice = await Invoice.create({
+      const invoice = await InvoiceModel.create({
         sellerId: sellerId,
         ...master,
         totalAmount: totalAmount,
@@ -265,7 +271,7 @@ export async function saveInvoiceData(invoiceGroups, sellerId) {
       
        // Create invoice items
        for (const itemData of items) {
-         const item = await InvoiceItem.create({
+         const item = await InvoiceItemModel.create({
            invoiceId: invoice.id,
            ...itemData
          }, { transaction });
@@ -295,9 +301,10 @@ export async function saveInvoiceData(invoiceGroups, sellerId) {
  * Process Excel upload for seller
  * @param {Buffer} fileBuffer - Excel file buffer
  * @param {number} sellerId - Seller ID
+ * @param {Object} user - User object containing fbrTokenType
  * @returns {Object} Processing result
  */
-export async function processExcelUpload(fileBuffer, sellerId) {
+export async function processExcelUpload(fileBuffer, sellerId, user) {
   try {
     // Parse Excel file
     const invoiceGroups = parseExcelFile(fileBuffer);
@@ -307,10 +314,10 @@ export async function processExcelUpload(fileBuffer, sellerId) {
     }
     
     // Validate that invoiceRefNo values don't already exist for this seller
-    await validateInvoiceRefNumbers(invoiceGroups, sellerId);
+    await validateInvoiceRefNumbers(invoiceGroups, sellerId, user);
     
     // Save to database
-    const result = await saveInvoiceData(invoiceGroups, sellerId);
+    const result = await saveInvoiceData(invoiceGroups, sellerId, user);
     
     return {
       success: true,

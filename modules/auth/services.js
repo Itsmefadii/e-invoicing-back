@@ -88,6 +88,7 @@ export async function login({ email, password }) {
       roleName: user.role?.roleName,
       sellerId: user.sellerId || null,
       sellerCode: sellerData?.sellerCode || null,
+      fbrTokenType: sellerData?.fbrTokenType || null,
     });
    
     return {
@@ -123,6 +124,7 @@ export async function login({ email, password }) {
           businessEmail: sellerData.businessEmail,
           fbrSandBoxToken: sellerData.fbrSandBoxToken,
           fbrProdToken: sellerData.fbrProdToken,
+          fbrTokenType: sellerData.fbrTokenType,
           logoUrl: sellerData.logoUrl,
           isActive: sellerData.isActive
         } : null,

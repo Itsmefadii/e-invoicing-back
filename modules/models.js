@@ -2,20 +2,26 @@ import './user/model.js';
 import './user/model.seller.js';
 import './invoice/model.js';
 import './invoice/model.invoiceItem.js';
+import './invoice/model.sandboxInvoice.js';
+import './invoice/model.sandboxInvoiceItem.js';
 import './permission/model.role.js';
 import './systemConfigs/model/model.businessNature.js';
 import './systemConfigs/model/model.industry.js';
 import './systemConfigs/model/model.state.js';
+import './systemConfigs/model/model.hsCode.js';
 import { User } from './user/model.js';
 import { Seller } from './user/model.seller.js';
 import { Invoice } from './invoice/model.js';
 import { InvoiceItem } from './invoice/model.invoiceItem.js';
+import { SandboxInvoice } from './invoice/model.sandboxInvoice.js';
+import { SandboxInvoiceItem } from './invoice/model.sandboxInvoiceItem.js';
 import { Role } from './permission/model.role.js';
 import { Permission } from './permission/model.permission.js';
 import { RolePermission } from './permission/model.rolePermission.js';
 import { BusinessNature } from './systemConfigs/model/model.businessNature.js';
 import { Industry } from './systemConfigs/model/model.industry.js';
 import { State } from './systemConfigs/model/model.state.js';
+import { HsCode } from './systemConfigs/model/model.hsCode.js';
 
 // Associations
 Seller.hasMany(User, { foreignKey: 'sellerId', as: 'users' });
@@ -48,7 +54,14 @@ Seller.belongsTo(State, { foreignKey: 'stateId', as: 'state' });
 Invoice.hasMany(InvoiceItem, { foreignKey: 'invoiceId', as: 'items' });
 InvoiceItem.belongsTo(Invoice, { foreignKey: 'invoiceId', as: 'invoice' });
 
-export { User, Seller, Invoice, InvoiceItem, Role, BusinessNature, Industry, State };
+// Sandbox Invoice associations
+Seller.hasMany(SandboxInvoice, { foreignKey: 'sellerId', as: 'sandboxInvoices' });
+SandboxInvoice.belongsTo(Seller, { foreignKey: 'sellerId', as: 'seller' });
+
+SandboxInvoice.hasMany(SandboxInvoiceItem, { foreignKey: 'invoiceId', as: 'items' });
+SandboxInvoiceItem.belongsTo(SandboxInvoice, { foreignKey: 'invoiceId', as: 'invoice' });
+
+export { User, Seller, Invoice, InvoiceItem, SandboxInvoice, SandboxInvoiceItem, Role, BusinessNature, Industry, State, HsCode };
 
 // No hard foreign keys between RolePermission and Permission to keep it simple
 export { Permission, RolePermission };

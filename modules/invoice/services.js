@@ -1,19 +1,25 @@
 import { Invoice } from './model.js';
 import { InvoiceItem } from './model.invoiceItem.js';
 import { Seller } from '../user/model.seller.js';
+import { User } from '../user/model.js';
 import { BusinessNature } from '../systemConfigs/model/model.businessNature.js';
 import { Industry } from '../systemConfigs/model/model.industry.js';
 import { State } from '../systemConfigs/model/model.state.js';
 import { Op } from 'sequelize';
 import axios from 'axios';
+import { getInvoiceModelsFromUser } from '../../lib/utils/invoiceModels.js';
 
 export async function listInvoicesService(req) {
+  console.log(req.user)
+  const { Invoice: InvoiceModel, InvoiceItem: InvoiceItemModel } = getInvoiceModelsFromUser(req.user);
 
-  console.log(req.user);
+  console.log(InvoiceModel);
+  console.log(InvoiceItemModel);
+
   const include = [{
-    model: InvoiceItem,
+    model: InvoiceItemModel,
     as: 'items',
-    attributes: ['id', 'hsCode', 'productDescription', 'rate', 'uoM', 'quantity', 'totalValues', 'valueSalesExcludingST', 'fixedNotifiedValueOrRetailPrice', 'salesTaxApplicable', 'salesTaxWithheldAtSource', 'extraTax', 'furtherTax', 'sroScheduleNo', 'fedPayable', 'discount', 'saleType', 'sroItemSerialNo']
+    attributes: ['id', 'hsCode', 'productDescription', 'rate', 'uoM', 'quantity', 'totalValues', 'valueSalesExcludingST', 'fixedNotifiedValueOrRetailPrice', 'salesTaxApplicable', 'salesTaxWithheldAtSource', 'extraTax', 'furtherTax', 'sroScheduleNo', 'fedPayable', 'discount', 'saleType', 'sroItemSerialNo', 'error']
   },
   {
     model: Seller,
@@ -33,12 +39,12 @@ export async function listInvoicesService(req) {
     ]
   }]
 
-  let rows = await Invoice.findAll({
+  let rows = await InvoiceModel.findAll({
     include: include,
   });
 
   if (req.user.roleName === 'Seller') {
-    rows = await Invoice.findAll({
+    rows = await InvoiceModel.findAll({
       where: {
         sellerId: req.user.sellerId
       },
@@ -46,14 +52,14 @@ export async function listInvoicesService(req) {
     });
   }
 
-
   return rows.map((r) => r.toJSON());
 }
 
-export async function getInvoiceByIdService(id) {
+export async function getInvoiceByIdService(id, user) {
+  const { Invoice: InvoiceModel, InvoiceItem: InvoiceItemModel } = getInvoiceModelsFromUser(user);
 
   const include = [{
-    model: InvoiceItem,
+    model: InvoiceItemModel,
     as: 'items',
     attributes: ['id', 'hsCode', 'productDescription', 'rate', 'uoM', 'quantity', 'totalValues', 'valueSalesExcludingST', 'fixedNotifiedValueOrRetailPrice', 'salesTaxApplicable', 'salesTaxWithheldAtSource', 'extraTax', 'furtherTax', 'sroScheduleNo', 'fedPayable', 'discount', 'saleType', 'sroItemSerialNo']
   },
@@ -76,7 +82,7 @@ export async function getInvoiceByIdService(id) {
   }
   ]
 
-  const row = await Invoice.findOne({
+  const row = await InvoiceModel.findOne({
     where: {
       id: id
     },
@@ -87,11 +93,11 @@ export async function getInvoiceByIdService(id) {
 
 
 export async function postInvoiceService(request, invoiceIds) {
-
+  const { Invoice: InvoiceModel, InvoiceItem: InvoiceItemModel } = getInvoiceModelsFromUser(request.user);
   const sellerId = request.user.sellerId;
 
   const include = [{
-    model: InvoiceItem,
+    model: InvoiceItemModel,
     as: 'items',
     attributes: ['id', 'hsCode', 'productDescription', 'rate', 'uoM', 'quantity', 'totalValues', 'valueSalesExcludingST', 'fixedNotifiedValueOrRetailPrice', 'salesTaxApplicable', 'salesTaxWithheldAtSource', 'extraTax', 'furtherTax', 'sroScheduleNo', 'fedPayable', 'discount', 'saleType', 'sroItemSerialNo']
   },
@@ -119,21 +125,24 @@ export async function postInvoiceService(request, invoiceIds) {
   }
   ]
 
-  const row = await Invoice.findAll({
+  const row = await InvoiceModel.findAll({
     where: {
       id: { [Op.in]: invoiceIds }
     },
     include: include
   });
 
+  const fbrTokenType = request.user.sellerData?.fbrTokenType;
+  const tokenAttribute = fbrTokenType === 'Sandbox' ? 'fbrSandBoxToken' : 'fbrProdToken';
+  
   const findToken = await Seller.findOne({
     where: {
       id: sellerId
     },
-    attributes: ['fbrSandBoxToken']
+    attributes: [tokenAttribute]
   })
 
-  const token = findToken.fbrSandBoxToken;
+  const token = findToken[tokenAttribute];
 
   console.log(token);
 
@@ -175,7 +184,7 @@ export async function postInvoiceService(request, invoiceIds) {
     }
 
     try {
-      const submitInvoice = await fbrSubmitInvoice(prepareData, token)
+      const submitInvoice = await fbrSubmitInvoice(prepareData, token, fbrTokenType)
       
       // Parse the response if it's a string, with error handling for malformed JSON
       let parsedResponse;
@@ -214,7 +223,7 @@ export async function postInvoiceService(request, invoiceIds) {
       if (statusCode === "01" || status === "Invalid" || status === "invalid") {
         console.log(`Invoice ${row[i].id} validation failed:`, { status, statusCode, error, errorCode });
 
-        await Invoice.update({
+        await InvoiceModel.update({
           status: status,
           error: error,
         }, {
@@ -232,7 +241,7 @@ export async function postInvoiceService(request, invoiceIds) {
             if (itemStatus.statusCode === "01" || itemStatus.status === "Invalid" || itemStatus.status === "invalid") {
               console.log(`Item ${j + 1} validation failed:`, itemStatus);
               
-              await InvoiceItem.update({
+              await InvoiceItemModel.update({
                 error: itemStatus.error,
               }, {
                 where: {
@@ -245,7 +254,7 @@ export async function postInvoiceService(request, invoiceIds) {
       } else if (statusCode === "00" && status === "Valid") {
         console.log(`Invoice ${row[i].id} validation successful`);
         
-        await Invoice.update({
+        await InvoiceModel.update({
           status: status,
           error: null,
           fbrInvoiceNumber: invoiceStatuses[0].invoiceNumber,
@@ -257,16 +266,19 @@ export async function postInvoiceService(request, invoiceIds) {
       }
 
       // Add the response to data array for return
-      data.push({
+      const responseData = {
         invoiceId: row[i].id,
         fbrResponse: parsedResponse
-      });
+      };
+      
+      console.log(`Response data for invoice ${row[i].id}:`, JSON.stringify(responseData, null, 2));
+      data.push(responseData);
 
     } catch (error) {
       console.error(`Error processing invoice ${row[i].id}:`, error);
       
       // Update invoice with error status
-      await Invoice.update({
+      await InvoiceModel.update({
         status: "Error",
         error: error.message,
       }, {
@@ -286,12 +298,14 @@ export async function postInvoiceService(request, invoiceIds) {
   return data;
 }
 
-async function fbrSubmitInvoice(invoice, token) {
+async function fbrSubmitInvoice(invoice, token, fbrTokenType) {
   console.log("Token", token);
+  console.log("FBR Token Type", fbrTokenType);
 
   console.log("Invoice: ", invoice)
 
-  const response = await axios.post(`${process.env.FBR_API_URL}/postinvoicedata_sb`, invoice,
+  const endpoint = fbrTokenType === 'sandbox' ? '/postinvoicedata_sb' : '/postinvoicedata';
+  const response = await axios.post(`${process.env.FBR_API_URL}${endpoint}`, invoice,
     {
       headers: {
         "Content-Type": "application/json",
@@ -312,3 +326,185 @@ async function fbrSubmitInvoice(invoice, token) {
   return response.data
 }
 
+export async function createInvoiceService(req) {
+  const { Invoice: InvoiceModel, InvoiceItem: InvoiceItemModel } = getInvoiceModelsFromUser(req.user);
+  const invoice  = req.body;
+  const sellerId = req.user.sellerId;
+
+  console.log('sellerId', sellerId);
+  console.log('invoice', invoice);
+
+  const findInvoice = await InvoiceModel.findOne({
+    where: {
+      [Op.and] : [{invoiceRefNo: invoice.invoiceRefNo}, {sellerId: sellerId}]
+    }
+  });
+
+  if(findInvoice){
+    throw new Error('Invoice already exists');
+  }
+
+  const createInvoice = await InvoiceModel.create({
+    sellerId: sellerId,
+    ...invoice
+  });
+
+  if(!createInvoice){
+    throw new Error('Failed to create invoice');
+  }
+
+  // Create invoice items using bulkCreate for better performance
+  const itemData = invoice.items.map((item) => {
+    // Remove id field to let database auto-generate it
+    const { id, ...itemWithoutId } = item;
+    return {
+      invoiceId: createInvoice.id,
+      ...itemWithoutId
+    };
+  });
+
+  const createInvoiceItems = await InvoiceItemModel.bulkCreate(itemData);
+  return {invoice: createInvoice, items: createInvoiceItems};
+}
+
+export async function updateInvoiceService(req) {
+  const { Invoice: InvoiceModel, InvoiceItem: InvoiceItemModel } = getInvoiceModelsFromUser(req.user);
+  const invoice = req.body;
+  const invoiceId = req.params.id;
+  const sellerId = req.user.sellerId;
+
+  const deleteInvoiceItems = await InvoiceItemModel.destroy({where: {invoiceId}});
+
+  const deleteInvoice = await InvoiceModel.destroy({where: {id: invoiceId}});
+
+  if(!deleteInvoiceItems || !deleteInvoice){
+    throw new Error('Failed to delete invoice items or invoice');
+  }
+
+  const createInvoice = await InvoiceModel.create({
+    sellerId: sellerId,
+    ...invoice
+  });
+
+  if(!createInvoice){
+    throw new Error('Failed to create invoice');
+  }
+
+  // Create invoice items using bulkCreate for better performance
+  const itemData = invoice.items.map((item) => {
+    // Remove id field to let database auto-generate it
+    const { id, ...itemWithoutId } = item;
+    return {
+      invoiceId: createInvoice.id,
+      ...itemWithoutId
+    };
+  });
+
+  const createInvoiceItems = await InvoiceItemModel.bulkCreate(itemData);
+  return {invoice: createInvoice, items: createInvoiceItems};
+}
+
+export async function deleteInvoiceService(req) {
+  const { Invoice: InvoiceModel, InvoiceItem: InvoiceItemModel } = getInvoiceModelsFromUser(req.user);
+  const invoiceId = req.params.id;
+
+  const deleteInvoiceItems = await InvoiceItemModel.destroy({where: {invoiceId}});
+
+  const deleteInvoice = await InvoiceModel.destroy({where: {id: invoiceId}});
+
+  if(!deleteInvoiceItems || !deleteInvoice){
+    throw new Error('Failed to delete invoice items or invoice');
+  }
+  return {message: 'Invoice deleted successfully'};
+}
+
+export async function getDashboardStatsService(req) {
+  const { Invoice: InvoiceModel, InvoiceItem: InvoiceItemModel } = getInvoiceModelsFromUser(req.user);
+  const sellerId = req.user.sellerId;
+  const userRole = req.user.roleName;
+
+  // Base where clause - filter by seller if user is a seller
+  const whereClause = userRole === 'Seller' ? { sellerId } : {};
+
+  try {
+    // Get total number of invoices
+    const totalInvoices = await InvoiceModel.count({
+      where: whereClause
+    });
+
+    // Get number of users for the seller (only if user is a seller)
+    let totalUsers = 0;
+    if (userRole === 'Seller') {
+      totalUsers = await User.count({
+        where: { sellerId }
+      });
+    } else {
+      // If admin, get total users across all sellers
+      totalUsers = await User.count();
+    }
+
+    // Get total revenue from submitted invoices
+    const submittedInvoices = await InvoiceModel.findAll({
+      where: {
+        ...whereClause,
+        status: 'submitted'
+      },
+      attributes: ['totalAmount']
+    });
+
+    const totalRevenue = submittedInvoices.reduce((sum, invoice) => {
+      return sum + parseFloat(invoice.totalAmount || 0);
+    }, 0);
+
+    // Get invoice counts by status
+    const pendingInvoices = await InvoiceModel.count({
+      where: {
+        ...whereClause,
+        status: 'pending'
+      }
+    });
+
+    const submittedInvoicesCount = await InvoiceModel.count({
+      where: {
+        ...whereClause,
+        status: 'submitted'
+      }
+    });
+
+    const invalidInvoices = await InvoiceModel.count({
+      where: {
+        ...whereClause,
+        status: 'invalid'
+      }
+    });
+
+    // Calculate success rate
+    const totalProcessedInvoices = submittedInvoicesCount + invalidInvoices;
+    const successRate = totalProcessedInvoices > 0 
+      ? ((submittedInvoicesCount / totalProcessedInvoices) * 100).toFixed(2)
+      : 0;
+
+    // Get valid invoices count (if status 'valid' exists)
+    const validInvoices = await InvoiceModel.count({
+      where: {
+        ...whereClause,
+        status: 'valid'
+      }
+    });
+
+    return {
+      totalInvoices,
+      totalUsers,
+      totalRevenue: parseFloat(totalRevenue.toFixed(2)),
+      successRate: parseFloat(successRate),
+      pendingInvoices,
+      submittedInvoices: submittedInvoicesCount,
+      invalidInvoices,
+      validInvoices
+    };
+
+  } catch (error) {
+    console.error('Dashboard stats error:', error);
+    throw new Error('Failed to retrieve dashboard statistics');
+  }
+}

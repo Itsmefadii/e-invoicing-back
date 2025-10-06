@@ -145,3 +145,20 @@ export const updateSellerService = async (req) => {
         throw new Error(`Failed to update seller: ${error.message}`);
     }
 }
+
+export const environmentChangeService = async (req) => {
+    try {
+        const sellerId = req.user.sellerId;
+        const { tokenType } = req.body;
+
+        const seller = await Seller.findByPk(sellerId);
+        if (!seller) {
+            throw new Error('Seller not found');
+        }
+
+        await seller.update({ fbrTokenType: tokenType });
+        return seller;
+    } catch (error) {
+        throw new Error(`Failed to update seller: ${error.message}`);
+    }
+}

@@ -1,6 +1,7 @@
 import { BusinessNature } from './model/model.businessNature.js';
 import { Industry } from './model/model.industry.js';
 import { State } from './model/model.state.js';
+import { HsCode } from './model/model.hsCode.js';
 
 // Business Nature Services
 async function getAllBusinessNatures() {
@@ -188,6 +189,137 @@ async function deleteState(id) {
   }
 }
 
+// HsCode Services
+async function getAllHsCodes() {
+  try {
+    const hsCodes = await HsCode.findAll({
+      order: [['hsCode', 'ASC']],
+      attributes: ['id', 'hsCode', 'description', 'createdAt', 'updatedAt']
+    });
+    return hsCodes;
+  } catch (error) {
+    throw new Error(`Failed to fetch HS codes: ${error.message}`);
+  }
+}
+
+async function getHsCodeById(id) {
+  try {
+    const hsCode = await HsCode.findByPk(id);
+    if (!hsCode) {
+      throw new Error('HS code not found');
+    }
+    return hsCode;
+  } catch (error) {
+    throw new Error(`Failed to fetch HS code: ${error.message}`);
+  }
+}
+
+async function createHsCode(data) {
+  try {
+    const hsCode = await HsCode.create(data);
+    return hsCode;
+  } catch (error) {
+    throw new Error(`Failed to create HS code: ${error.message}`);
+  }
+}
+
+async function updateHsCode(id, data) {
+  try {
+    const hsCode = await HsCode.findByPk(id);
+    if (!hsCode) {
+      throw new Error('HS code not found');
+    }
+    
+    await hsCode.update(data);
+    return hsCode;
+  } catch (error) {
+    throw new Error(`Failed to update HS code: ${error.message}`);
+  }
+}
+
+async function deleteHsCode(id) {
+  try {
+    const hsCode = await HsCode.findByPk(id);
+    if (!hsCode) {
+      throw new Error('HS code not found');
+    }
+    
+    await hsCode.destroy();
+    return { message: 'HS code deleted successfully' };
+  } catch (error) {
+    throw new Error(`Failed to delete HS code: ${error.message}`);
+  }
+}
+
+async function populateHsCodesFromFBR() {
+  try {
+    const response = await fetch('https://gw.fbr.gov.pk/pdi/v1/itemdesccode', {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'Authorization': `Bearer ${process.env.FBR_API_TOKEN}`
+      },
+      cache: 'no-cache'
+    });
+    
+    if (!response.ok) {
+      throw new Error(`FBR API request failed with status: ${response.status}`);
+    }
+    
+    const fbrData = await response.json();
+    
+    if (!Array.isArray(fbrData)) {
+      throw new Error('Invalid data format received from FBR API');
+    }
+    
+    let createdCount = 0;
+    let updatedCount = 0;
+    let skippedCount = 0;
+    
+    for (const item of fbrData) {
+      if (!item.hS_CODE || !item.description) {
+        skippedCount++;
+        continue;
+      }
+      
+      // Check if HS code already exists
+      const existingHsCode = await HsCode.findOne({
+        where: { hsCode: item.hS_CODE }
+      });
+      
+      if (existingHsCode) {
+        // Update existing record if description is different
+        if (existingHsCode.description !== item.description) {
+          await existingHsCode.update({ description: item.description });
+          updatedCount++;
+        } else {
+          skippedCount++;
+        }
+      } else {
+        // Create new record
+        await HsCode.create({
+          hsCode: item.hS_CODE,
+          description: item.description
+        });
+        createdCount++;
+      }
+    }
+    
+    return {
+      message: 'HS codes populated successfully from FBR API',
+      stats: {
+        created: createdCount,
+        updated: updatedCount,
+        skipped: skippedCount,
+        total: fbrData.length
+      }
+    };
+  } catch (error) {
+    throw new Error(`Failed to populate HS codes from FBR API: ${error.message}`);
+  }
+}
+
 export {
   // Business Nature exports
   getAllBusinessNatures,
@@ -208,5 +340,13 @@ export {
   getStateById,
   createState,
   updateState,
-  deleteState
+  deleteState,
+  
+  // HsCode exports
+  getAllHsCodes,
+  getHsCodeById,
+  createHsCode,
+  updateHsCode,
+  deleteHsCode,
+  populateHsCodesFromFBR
 };

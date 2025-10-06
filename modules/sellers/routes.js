@@ -1,4 +1,4 @@
-import { createSellerController, updateSellerController, fetchSellersController } from './controller.js';
+import { createSellerController, updateSellerController, fetchSellersController, environmentChangeController } from './controller.js';
 
 export const sellersRoutes = (fastify, options, done) => {
     fastify.route({
@@ -22,5 +22,17 @@ export const sellersRoutes = (fastify, options, done) => {
         }
       },
     });
+
+    fastify.route({
+        method: ["PUT"],
+        url: "/environment-change",
+        handler: (req, reply) => {
+          console.log(req.method);
+          
+          if (req.method == "PUT") {
+              environmentChangeController(req, reply);
+          }
+        },
+      });
     done();
 }

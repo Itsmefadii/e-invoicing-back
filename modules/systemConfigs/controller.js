@@ -13,7 +13,13 @@ import {
   getStateById,
   createState,
   updateState,
-  deleteState
+  deleteState,
+  getAllHsCodes,
+  getHsCodeById,
+  createHsCode,
+  updateHsCode,
+  deleteHsCode,
+  populateHsCodesFromFBR
 } from './services.js';
 import { sendSuccess, sendError, sendCreated, sendNotFoundError } from '../../lib/utils/response.js';
 
@@ -315,6 +321,127 @@ export async function deleteStateHandler(request, reply) {
     if (error.message === 'State not found') {
       return sendNotFoundError(reply, error.message);
     }
+    return sendError(reply, error.message, 500);
+  }
+}
+
+// HsCode Controllers
+export async function fetchAllHsCodes(request, reply) {
+  try {
+    // User data is automatically available in request.user
+    console.log('User fetching HS codes:', {
+      userId: request.user.id,
+      userName: request.user.fullName,
+      roleName: request.user.roleName
+    });
+
+    const hsCodes = await getAllHsCodes();
+    return sendSuccess(reply, hsCodes, 'HS codes fetched successfully');
+  } catch (error) {
+    return sendError(reply, error.message, 500);
+  }
+}
+
+export async function fetchHsCodeById(request, reply) {
+  try {
+    // User data is automatically available in request.user
+    console.log('User fetching HS code by ID:', {
+      userId: request.user.id,
+      userName: request.user.fullName,
+      hsCodeId: request.params.id
+    });
+
+    const { id } = request.params;
+    const hsCode = await getHsCodeById(id);
+    return sendSuccess(reply, hsCode, 'HS code fetched successfully');
+  } catch (error) {
+    if (error.message === 'HS code not found') {
+      return sendNotFoundError(reply, error.message);
+    }
+    return sendError(reply, error.message, 500);
+  }
+}
+
+export async function createHsCodeHandler(request, reply) {
+  try {
+    // User data is automatically available in request.user
+    console.log('User creating HS code:', {
+      userId: request.user.id,
+      userName: request.user.fullName,
+      userRole: request.user.roleName,
+      sellerId: request.user.sellerId
+    });
+
+    const data = request.body;
+    
+    // Add user-specific data to the creation
+    const enrichedData = {
+      ...data,
+      createdBy: request.user.id,
+      sellerId: request.user.sellerId // If this is seller-specific data
+    };
+
+    const hsCode = await createHsCode(enrichedData);
+    return sendCreated(reply, hsCode, 'HS code created successfully');
+  } catch (error) {
+    return sendError(reply, error.message, 500);
+  }
+}
+
+export async function updateHsCodeHandler(request, reply) {
+  try {
+    // User data is automatically available in request.user
+    console.log('User updating HS code:', {
+      userId: request.user.id,
+      userName: request.user.fullName,
+      hsCodeId: request.params.id,
+      updateData: request.body
+    });
+
+    const { id } = request.params;
+    const data = request.body;
+    const hsCode = await updateHsCode(id, data);
+    return sendSuccess(reply, hsCode, 'HS code updated successfully');
+  } catch (error) {
+    if (error.message === 'HS code not found') {
+      return sendNotFoundError(reply, error.message);
+    }
+    return sendError(reply, error.message, 500);
+  }
+}
+
+export async function deleteHsCodeHandler(request, reply) {
+  try {
+    // User data is automatically available in request.user
+    console.log('User deleting HS code:', {
+      userId: request.user.id,
+      userName: request.user.fullName,
+      hsCodeId: request.params.id
+    });
+
+    const { id } = request.params;
+    const result = await deleteHsCode(id);
+    return sendSuccess(reply, result, 'HS code deleted successfully');
+  } catch (error) {
+    if (error.message === 'HS code not found') {
+      return sendNotFoundError(reply, error.message);
+    }
+    return sendError(reply, error.message, 500);
+  }
+}
+
+export async function populateHsCodesFromFBRHandler(request, reply) {
+  try {
+    // User data is automatically available in request.user
+    console.log('User populating HS codes from FBR API:', {
+      userId: request.user.id,
+      userName: request.user.fullName,
+      userRole: request.user.roleName
+    });
+
+    const result = await populateHsCodesFromFBR();
+    return sendSuccess(reply, result, 'HS codes populated successfully from FBR API');
+  } catch (error) {
     return sendError(reply, error.message, 500);
   }
 }

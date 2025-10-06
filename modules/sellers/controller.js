@@ -1,4 +1,4 @@
-import { createSellerService, fetchSellersService, updateSellerService } from "./services.js";
+import { createSellerService, environmentChangeService, fetchSellersService, updateSellerService } from "./services.js";
 import { ROLE } from "../../lib/auth/guards.js";
 import { sendCreated, sendError, sendSuccess, sendNotFoundError } from "../../lib/utils/response.js";
 
@@ -48,6 +48,7 @@ export const updateSellerController = async (req, reply) => {
 
 export const fetchSellersController = async (req, reply) => {
     try {
+        
         if(req.user.roleName !== "Admin"){
             return sendError(reply, 'You are not authorized to view sellers', 403);
         }
@@ -60,6 +61,27 @@ export const fetchSellersController = async (req, reply) => {
 
         return sendSuccess(reply, result, 'Sellers fetched successfully');
     } catch (error) {
+        return sendError(reply, error.message, 500);
+    }
+}
+
+export const environmentChangeController = async (req, reply) => {
+    try {
+        console.log("Environment change controller", req.user.roleName);
+        if(req.user.roleName !== "Seller"){
+            console.log("Inside Role");
+            return sendError(reply, 'You are not authorized to change environment', 403);
+        }
+
+        const result = await environmentChangeService(req);
+
+        if(!result){
+            throw new Error('Failed to change environment');
+        }
+
+        return sendSuccess(reply, result, 'Environment changed successfully');
+    } catch (error) {
+        console.log("Environment change error", error);
         return sendError(reply, error.message, 500);
     }
 }

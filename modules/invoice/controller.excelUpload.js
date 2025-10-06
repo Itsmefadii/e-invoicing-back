@@ -41,7 +41,7 @@ export async function uploadExcelController(request, reply) {
     const fileBuffer = await data.toBuffer();
     
     // Process Excel upload
-    const result = await processExcelUpload(fileBuffer, request.user.sellerId);
+    const result = await processExcelUpload(fileBuffer, request.user.sellerId, request.user);
     
     // Log the upload activity
     console.log('Excel upload completed:', {
