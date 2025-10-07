@@ -1,9 +1,10 @@
-import { createSeller, createSellerUser } from './services.js';
+import { createSeller, createSellerUser, changePassword } from './services.js';
 import { ROLE } from '../../lib/auth/guards.js';
 import { 
   sendCreated, 
   sendValidationError, 
-  sendError 
+  sendError, 
+  sendSuccess
 } from '../../lib/utils/response.js';
 
 export async function adminCreateSellerHandler(request, reply) {
@@ -65,5 +66,38 @@ export async function sellerCreateUserHandler(request, reply) {
   }
 }
 
+export async function sellerChangePasswordHandler(request, reply) {
+  try {
+    const sellerId = request.user.sellerId;
+    const { oldPassword, newPassword } = request.body;
+
+    // Validate required fields
+    if (!oldPassword || !newPassword) {
+      return sendValidationError(reply, 'Old password and new password are required');
+    }
+
+    const result = await changePassword(request, sellerId, oldPassword, newPassword);
+    return sendSuccess(reply, result, 'Password changed successfully');
+  } catch (error) {
+    console.error('Change password error:', error);
+    
+    // Handle specific error cases
+    if (error.message === 'Old Password is incorrect') {
+      return sendValidationError(reply, 'Old password is incorrect');
+    }
+    
+    if (error.message === 'User not found') {
+      return sendValidationError(reply, 'User not found');
+    }
+    
+    if (error.message.includes('required') || 
+        error.message.includes('must be') || 
+        error.message.includes('Invalid')) {
+      return sendValidationError(reply, error.message);
+    }
+    
+    return sendError(reply, 'Failed to change password. Please try again later.');
+  }
+}
 
 

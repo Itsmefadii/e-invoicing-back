@@ -1,5 +1,5 @@
 import { authenticate, requireRole, ROLE } from '../../lib/auth/guards.js';
-import { adminCreateSellerHandler, sellerCreateUserHandler } from './controller.js';
+import { adminCreateSellerHandler, sellerCreateUserHandler, sellerChangePasswordHandler } from './controller.js';
 
 export default function userRoutes(fastify, options, done) {
   // Admin sellers endpoint
@@ -26,6 +26,19 @@ export default function userRoutes(fastify, options, done) {
       
       if (req.method == "POST") {
         sellerCreateUserHandler(req, reply);
+      }
+    },
+  });
+
+  //change-password
+  fastify.route({
+    method: ["POST"],
+    url: "/change-password",
+    handler: (req, reply) => {
+      console.log(req.method);
+      
+      if (req.method == "POST") {
+        sellerChangePasswordHandler(req, reply);
       }
     },
   });

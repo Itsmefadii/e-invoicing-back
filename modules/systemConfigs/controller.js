@@ -19,7 +19,8 @@ import {
   createHsCode,
   updateHsCode,
   deleteHsCode,
-  populateHsCodesFromFBR
+  populateHsCodesFromFBR,
+  fetchSaleType
 } from './services.js';
 import { sendSuccess, sendError, sendCreated, sendNotFoundError } from '../../lib/utils/response.js';
 
@@ -441,6 +442,15 @@ export async function populateHsCodesFromFBRHandler(request, reply) {
 
     const result = await populateHsCodesFromFBR();
     return sendSuccess(reply, result, 'HS codes populated successfully from FBR API');
+  } catch (error) {
+    return sendError(reply, error.message, 500);
+  }
+}
+
+export async function fetchSaleTypeHandler(request, reply) {
+  try {
+    const result = await fetchSaleType(request);
+    return sendSuccess(reply, result, 'Sale types fetched successfully');
   } catch (error) {
     return sendError(reply, error.message, 500);
   }

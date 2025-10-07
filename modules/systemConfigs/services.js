@@ -2,6 +2,7 @@ import { BusinessNature } from './model/model.businessNature.js';
 import { Industry } from './model/model.industry.js';
 import { State } from './model/model.state.js';
 import { HsCode } from './model/model.hsCode.js';
+import { SaleType } from './model/model.saleType.js';
 
 // Business Nature Services
 async function getAllBusinessNatures() {
@@ -320,6 +321,19 @@ async function populateHsCodesFromFBR() {
   }
 }
 
+async function fetchSaleType() {
+  try {
+    const saleTypes = await SaleType.findAll({
+      order: [['transactionDesc', 'ASC']],
+      attributes: ['id', 'transactionDesc']
+    });
+    return saleTypes;
+  } catch (error) {
+    throw new Error(`Failed to fetch sale type: ${error.message}`);
+  }
+}
+
+
 export {
   // Business Nature exports
   getAllBusinessNatures,
@@ -348,5 +362,8 @@ export {
   createHsCode,
   updateHsCode,
   deleteHsCode,
-  populateHsCodesFromFBR
+  populateHsCodesFromFBR,
+
+  // Sale Type exports
+  fetchSaleType
 };

@@ -19,7 +19,8 @@ import {
   createHsCodeHandler,
   updateHsCodeHandler,
   deleteHsCodeHandler,
-  populateHsCodesFromFBRHandler
+  populateHsCodesFromFBRHandler,
+  fetchSaleTypeHandler
 } from './controller.js';
 
 export async function systemConfigsRoutes(fastify, options) {
@@ -134,6 +135,16 @@ export async function systemConfigsRoutes(fastify, options) {
     handler: (req, reply) => {
       console.log('Populating HS codes from FBR API');
       populateHsCodesFromFBRHandler(req, reply);
+    },
+  });
+
+  fastify.route({
+    method: ["POST", "GET"],
+    url: "/sale-type",
+    handler: (req, reply) => {
+      if (req.method == "GET") {
+      fetchSaleTypeHandler(req, reply);
+      }
     },
   });
 }

@@ -45,53 +45,46 @@ export async function postInvoiceHandler(request, reply) {
       return sendValidationError(reply, 'Invoice ID is required');
     }
 
-    const item = await postInvoiceService(request, invoiceIds);
+    const results = await postInvoiceService(request, invoiceIds);
     
-    if (!item) {
-      return sendNotFoundError(reply, 'Invoice not posted');
+    if (!results || results.length === 0) {
+      return sendNotFoundError(reply, 'No invoices processed');
     }
 
-    console.log('Received response from postInvoiceService:', JSON.stringify(item, null, 2));
+    console.log('Received response from postInvoiceService:', JSON.stringify(results, null, 2));
 
-    // Check if any invoices have validation errors
-    // item is the data array returned from postInvoiceService
-    const hasValidationErrors = item.some(invoice => {
-      const validation = invoice.fbrResponse?.validationResponse;
-      console.log('Checking validation for invoice:', invoice.invoiceId, 'validation:', validation);
+    // Check if any invoices have validation errors using the new standardized structure
+    const hasValidationErrors = results.some(invoice => {
+      // Check for invoice-level errors
+      const hasInvoiceError = invoice.statusCode === "01" || 
+                             invoice.status === "Invalid" || 
+                             invoice.status === "invalid" ||
+                             invoice.status === "Error";
       
-      if (validation) {
-        const isInvalid = validation.statusCode === "01" || 
-                         validation.status === "Invalid" || 
-                         validation.status === "invalid";
-        console.log('Is invalid:', isInvalid, 'statusCode:', validation.statusCode, 'status:', validation.status);
-        return isInvalid;
-      }
+      // Check for item-level errors
+      const hasItemErrors = invoice.itemErrors && invoice.itemErrors.length > 0;
       
-      // Also check if there's an error field (for catch block errors)
-      if (invoice.error) {
-        console.log('Invoice has error field:', invoice.error);
-        return true;
-      }
+      console.log(`Invoice ${invoice.invoiceId}: invoiceError=${hasInvoiceError}, itemErrors=${hasItemErrors}`);
       
-      return false;
+      return hasInvoiceError || hasItemErrors;
     });
 
     console.log('Final validation check result:', hasValidationErrors);
 
     if (hasValidationErrors) {
       console.log('Returning 400 error response due to validation errors');
-      // Return validation error response
+      // Return validation error response with standardized structure
       return reply.status(400).send({
         success: false,
-        message: 'Invoice validation failed',
-        data: item,
+        message: 'Invoice failed to submit: kindly check the invoice data in invoice view',
+        data: results,
         timestamp: new Date().toISOString()
       });
     }
 
     console.log('Returning 200 success response - no validation errors');
 
-    return sendSuccess(reply, item, 'Invoice posted successfully');
+    return sendSuccess(reply, results, 'Invoice posted successfully');
   } catch (error) {
     console.error('Post invoice error:', error);
     return sendError(reply, 'Failed to post invoice. Please try again later.');

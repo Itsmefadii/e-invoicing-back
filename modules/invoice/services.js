@@ -61,7 +61,7 @@ export async function getInvoiceByIdService(id, user) {
   const include = [{
     model: InvoiceItemModel,
     as: 'items',
-    attributes: ['id', 'hsCode', 'productDescription', 'rate', 'uoM', 'quantity', 'totalValues', 'valueSalesExcludingST', 'fixedNotifiedValueOrRetailPrice', 'salesTaxApplicable', 'salesTaxWithheldAtSource', 'extraTax', 'furtherTax', 'sroScheduleNo', 'fedPayable', 'discount', 'saleType', 'sroItemSerialNo']
+    attributes: ['id', 'hsCode', 'productDescription', 'rate', 'uoM', 'quantity', 'totalValues', 'valueSalesExcludingST', 'fixedNotifiedValueOrRetailPrice', 'salesTaxApplicable', 'salesTaxWithheldAtSource', 'extraTax', 'furtherTax', 'sroScheduleNo', 'fedPayable', 'discount', 'saleType', 'sroItemSerialNo', "error"]
   },
   {
     model: Seller,
@@ -134,6 +134,9 @@ export async function postInvoiceService(request, invoiceIds) {
 
   const fbrTokenType = request.user.sellerData?.fbrTokenType;
   const tokenAttribute = fbrTokenType === 'Sandbox' ? 'fbrSandBoxToken' : 'fbrProdToken';
+
+  console.log("FBR Token Type", fbrTokenType);
+  console.log("Token Attribute", tokenAttribute);
   
   const findToken = await Seller.findOne({
     where: {
@@ -144,7 +147,7 @@ export async function postInvoiceService(request, invoiceIds) {
 
   const token = findToken[tokenAttribute];
 
-  console.log(token);
+  console.log("Token", token);
 
   let data = []
   for (let i = 0; i < row.length; i++) {
@@ -162,25 +165,25 @@ export async function postInvoiceService(request, invoiceIds) {
       sellerBusinessName: row[i].seller.businessName,
       sellerProvince: row[i].seller.state.state,
       sellerAddress: row[i].seller.address1,
-      items: row[i].items.map((item) => ({
-        hsCode: item.hsCode,
-        productDescription: item.productDescription,
-        rate: item.rate,
-        uoM: item.uoM,
-        quantity: item.quantity,
-        totalValues: item.totalValues,
-        valueSalesExcludingST: item.valueSalesExcludingST,
-        fixedNotifiedValueOrRetailPrice: item.fixedNotifiedValueOrRetailPrice,
-        salesTaxApplicable: item.salesTaxApplicable,
-        salesTaxWithheldAtSource: item.salesTaxWithheldAtSource,
-        extraTax: item.extraTax,
-        furtherTax: item.furtherTax,
-        sroScheduleNo: item.sroScheduleNo,
-        fedPayable: item.fedPayable,
-        discount: item.discount,
-        saleType: item.saleType,
-        sroItemSerialNo: item.sroItemSerialNo
-      }))
+       items: row[i].items.map((item) => ({
+         hsCode: item.hsCode,
+         productDescription: item.productDescription,
+         rate: item.rate,
+         uoM: item.uoM,
+         quantity: parseFloat(item.quantity) || 0,
+         totalValues: parseFloat(item.totalValues) || 0,
+         valueSalesExcludingST: parseFloat(item.valueSalesExcludingST) || 0,
+         fixedNotifiedValueOrRetailPrice: parseFloat(item.fixedNotifiedValueOrRetailPrice) || 0,
+         salesTaxApplicable: parseFloat(item.salesTaxApplicable) || 0,
+         salesTaxWithheldAtSource: parseFloat(item.salesTaxWithheldAtSource) || 0,
+         extraTax: item.extraTax,
+         furtherTax: parseFloat(item.furtherTax) || 0,
+         sroScheduleNo: item.sroScheduleNo,
+         fedPayable: parseFloat(item.fedPayable) || 0,
+         discount: parseFloat(item.discount) || 0,
+         saleType: item.saleType,
+         sroItemSerialNo: item.sroItemSerialNo
+       }))
     }
 
     try {
@@ -255,9 +258,9 @@ export async function postInvoiceService(request, invoiceIds) {
         console.log(`Invoice ${row[i].id} validation successful`);
         
         await InvoiceModel.update({
-          status: status,
+          status: "Submitted",
           error: null,
-          fbrInvoiceNumber: invoiceStatuses[0].invoiceNumber,
+          fbrInvoiceNumber: invoiceStatuses[0].invoiceNo,
         }, {
           where: {
             id: row[i].id
@@ -265,11 +268,33 @@ export async function postInvoiceService(request, invoiceIds) {
         })
       }
 
-      // Add the response to data array for return
+      // Create a standardized response structure for frontend
       const responseData = {
         invoiceId: row[i].id,
-        fbrResponse: parsedResponse
+        status: validation.status || "Unknown",
+        statusCode: validation.statusCode || "99",
+        error: validation.error || "",
+        errorCode: validation.errorCode || "",
+        fbrInvoiceNumber: validation.invoiceStatuses && validation.invoiceStatuses[0] ? validation.invoiceStatuses[0].invoiceNo : null,
+        itemErrors: []
       };
+
+      // If there are item-level errors, add them to the response
+      if (validation.invoiceStatuses && Array.isArray(validation.invoiceStatuses)) {
+        validation.invoiceStatuses.forEach((itemStatus, index) => {
+          if (itemStatus.statusCode === "01" || itemStatus.status === "Invalid" || itemStatus.status === "invalid") {
+            responseData.itemErrors.push({
+              itemIndex: index,
+              itemSNo: itemStatus.itemSNo,
+              statusCode: itemStatus.statusCode,
+              status: itemStatus.status,
+              error: itemStatus.error,
+              errorCode: itemStatus.errorCode,
+              invoiceNo: itemStatus.invoiceNo
+            });
+          }
+        });
+      }
       
       console.log(`Response data for invoice ${row[i].id}:`, JSON.stringify(responseData, null, 2));
       data.push(responseData);
@@ -289,7 +314,12 @@ export async function postInvoiceService(request, invoiceIds) {
       
       data.push({
         invoiceId: row[i].id,
-        error: error.message
+        status: "Error",
+        statusCode: "99",
+        error: error.message,
+        errorCode: "SYSTEM_ERROR",
+        fbrInvoiceNumber: null,
+        itemErrors: []
       });
     }
   }
@@ -304,7 +334,7 @@ async function fbrSubmitInvoice(invoice, token, fbrTokenType) {
 
   console.log("Invoice: ", invoice)
 
-  const endpoint = fbrTokenType === 'sandbox' ? '/postinvoicedata_sb' : '/postinvoicedata';
+  const endpoint = fbrTokenType === 'Sandbox' ? '/postinvoicedata_sb' : '/postinvoicedata';
   const response = await axios.post(`${process.env.FBR_API_URL}${endpoint}`, invoice,
     {
       headers: {
