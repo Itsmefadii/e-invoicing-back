@@ -2,7 +2,9 @@ import { BusinessNature } from './model/model.businessNature.js';
 import { Industry } from './model/model.industry.js';
 import { State } from './model/model.state.js';
 import { HsCode } from './model/model.hsCode.js';
+import { HsUom } from './model/model.hsUom.js';
 import { SaleType } from './model/model.saleType.js';
+import axios from 'axios';
 
 // Business Nature Services
 async function getAllBusinessNatures() {
@@ -333,6 +335,165 @@ async function fetchSaleType() {
   }
 }
 
+// HsUom Services
+async function populateHsUomsFromFBR(req) {
+  try {
+    console.log('Starting to populate HsUoms from FBR API...');
+    
+    // Get FBR token from user data
+    const fbrToken = process.env.FBR_API_TOKEN;
+    
+    if (!fbrToken) {
+      throw new Error('FBR token not found in user data. Please ensure the user has a valid FBR token.');
+    }
+    
+    console.log('Using FBR token for API calls');
+    
+    // Get all HS codes from database
+    const hsCodes = await HsCode.findAll({
+      attributes: ['id', 'hsCode'],
+      order: [['id', 'ASC']]
+    });
+
+    console.log(`Found ${hsCodes.length} HS codes to process`);
+
+    const results = [];
+    let successCount = 0;
+    let errorCount = 0;
+
+    // Process each HS code
+    for (const hsCode of hsCodes) {
+      try {
+        console.log(`Processing HS code: ${hsCode.hsCode}`);
+        
+        // Call FBR API for UOM data
+        const fbrResponse = await axios.get(`https://gw.fbr.gov.pk/pdi/v2/HS_UOM?hs_code=${hsCode.hsCode}&annexure_id=3`, {
+          timeout: 10000, // 10 second timeout
+          headers: {
+            'Accept': 'application/json',
+            'Authorization': `Bearer ${fbrToken}`,
+            'User-Agent': 'E-Invoicing-System/1.0'
+          }
+        });
+
+        if (fbrResponse.data && Array.isArray(fbrResponse.data)) {
+          // Process each UOM entry
+          for (const uomData of fbrResponse.data) {
+            try {
+              // Check if this UOM already exists for this HS code
+              const existingUom = await HsUom.findOne({
+                where: {
+                  hsCode: hsCode.hsCode,
+                  uomId: uomData.uoM_ID
+                }
+              });
+
+              if (!existingUom) {
+                // Create new HsUom entry
+                const newHsUom = await HsUom.create({
+                  hsCode: hsCode.hsCode,
+                  uomId: uomData.uoM_ID,
+                  description: uomData.description
+                });
+
+                results.push({
+                  hsCode: hsCode.hsCode,
+                  uomId: uomData.uoM_ID,
+                  description: uomData.description,
+                  status: 'created',
+                  id: newHsUom.id
+                });
+              } else {
+                // Update existing entry if description changed
+                if (existingUom.description !== uomData.description) {
+                  await existingUom.update({
+                    description: uomData.description
+                  });
+                  
+                  results.push({
+                    hsCode: hsCode.hsCode,
+                    uomId: uomData.uoM_ID,
+                    description: uomData.description,
+                    status: 'updated',
+                    id: existingUom.id
+                  });
+                } else {
+                  results.push({
+                    hsCode: hsCode.hsCode,
+                    uomId: uomData.uoM_ID,
+                    description: uomData.description,
+                    status: 'already_exists',
+                    id: existingUom.id
+                  });
+                }
+              }
+            } catch (dbError) {
+              console.error(`Database error for HS code ${hsCode.hsCode}, UOM ${uomData.uoM_ID}:`, dbError.message);
+              errorCount++;
+            }
+          }
+        } else {
+          console.log(`No UOM data found for HS code: ${hsCode.hsCode}`);
+        }
+
+        successCount++;
+        
+        // Add a small delay to avoid overwhelming the FBR API
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
+      } catch (apiError) {
+        console.error(`API error for HS code ${hsCode.hsCode}:`, apiError.message);
+        errorCount++;
+        
+        // Continue with next HS code even if one fails
+        continue;
+      }
+    }
+
+    console.log(`HsUom population completed. Success: ${successCount}, Errors: ${errorCount}`);
+    
+    return {
+      totalHsCodes: hsCodes.length,
+      processedSuccessfully: successCount,
+      errors: errorCount,
+      results: results,
+      summary: {
+        created: results.filter(r => r.status === 'created').length,
+        updated: results.filter(r => r.status === 'updated').length,
+        alreadyExists: results.filter(r => r.status === 'already_exists').length
+      }
+    };
+
+  } catch (error) {
+    console.error('Error in populateHsUomsFromFBR:', error);
+    throw new Error(`Failed to populate HsUoms from FBR: ${error.message}`);
+  }
+}
+
+async function getAllHsUoms() {
+  try {
+    const hsUoms = await HsUom.findAll({
+      order: [['hsCode', 'ASC'], ['uomId', 'ASC']],
+      attributes: ['id', 'hsCode', 'uomId', 'description', 'createdAt', 'updatedAt']
+    });
+    return hsUoms;
+  } catch (error) {
+    throw new Error(`Failed to fetch HsUoms: ${error.message}`);
+  }
+}
+
+async function getHsUomsByHsCode(hsCode) {
+  try {
+    const hsUoms = await HsUom.findAll({
+      where: { hsCode },
+      order: [['uomId', 'ASC']],
+      attributes: ['id', 'hsCode', 'uomId', 'description', 'createdAt', 'updatedAt']
+    });
+    return hsUoms;
+  } catch (error) {
+    throw new Error(`Failed to fetch HsUoms for HS code ${hsCode}: ${error.message}`);
+  }
+}
 
 export {
   // Business Nature exports
@@ -365,5 +526,10 @@ export {
   populateHsCodesFromFBR,
 
   // Sale Type exports
-  fetchSaleType
+  fetchSaleType,
+
+  // HsUom exports
+  populateHsUomsFromFBR,
+  getAllHsUoms,
+  getHsUomsByHsCode
 };

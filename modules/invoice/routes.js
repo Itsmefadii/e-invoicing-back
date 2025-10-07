@@ -1,4 +1,4 @@
-import { listInvoicesHandler, getInvoiceByIdHandler, postInvoiceHandler, createInvoiceHandler, updateInvoiceHandler, deleteInvoiceHandler, getDashboardStatsHandler } from './controller.js';
+import { listInvoicesHandler, getInvoiceByIdHandler, postInvoiceHandler, createInvoiceHandler, updateInvoiceHandler, deleteInvoiceHandler, getDashboardStatsHandler, getReportsAnalyticsHandler } from './controller.js';
 
 export default function invoiceRoutes(fastify, options, done) {
   fastify.route({
@@ -57,6 +57,17 @@ export default function invoiceRoutes(fastify, options, done) {
       console.log(req.method);
       if (req.method == "GET") {
           getDashboardStatsHandler(req, reply);
+      }
+    },
+  });
+
+  fastify.route({
+    method: ["GET"],
+    url: "/reports",
+    handler: (req, reply) => {
+      console.log(req.method);
+      if (req.method == "GET") {
+          getReportsAnalyticsHandler(req, reply);
       }
     },
   });

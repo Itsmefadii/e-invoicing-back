@@ -5,7 +5,7 @@ import { User } from '../user/model.js';
 import { BusinessNature } from '../systemConfigs/model/model.businessNature.js';
 import { Industry } from '../systemConfigs/model/model.industry.js';
 import { State } from '../systemConfigs/model/model.state.js';
-import { Op } from 'sequelize';
+import { Op, fn, col } from 'sequelize';
 import axios from 'axios';
 import { getInvoiceModelsFromUser } from '../../lib/utils/invoiceModels.js';
 
@@ -475,10 +475,7 @@ export async function getDashboardStatsService(req) {
 
     // Get total revenue from submitted invoices
     const submittedInvoices = await InvoiceModel.findAll({
-      where: {
-        ...whereClause,
-        status: 'submitted'
-      },
+      where: whereClause,
       attributes: ['totalAmount']
     });
 
@@ -536,5 +533,214 @@ export async function getDashboardStatsService(req) {
   } catch (error) {
     console.error('Dashboard stats error:', error);
     throw new Error('Failed to retrieve dashboard statistics');
+  }
+}
+
+export async function getReportsAnalyticsService(req) {
+  const { Invoice: InvoiceModel, InvoiceItem: InvoiceItemModel } = getInvoiceModelsFromUser(req.user);
+  const sellerId = req.user.sellerId;
+  const userRole = req.user.roleName;
+
+  // Base where clause - filter by seller if user is a seller and only submitted invoices
+  const whereClause = userRole === 'Seller' ? { sellerId, status: 'submitted' } : { status: 'submitted' };
+
+  try {
+    // Get total number of invoices
+    const totalInvoices = await InvoiceModel.count({
+      where: whereClause
+    });
+
+    // Get total revenue from submitted invoices
+    const submittedInvoices = await InvoiceModel.findAll({
+      where: whereClause,
+      attributes: ['totalAmount']
+    });
+
+    const totalRevenue = submittedInvoices.reduce((sum, invoice) => {
+      return sum + parseFloat(invoice.totalAmount || 0);
+    }, 0);
+
+    // Get FBR success rate (only for submitted invoices)
+    const submittedInvoicesCount = await InvoiceModel.count({
+      where: whereClause
+    });
+
+    // For FBR success rate calculation, we need to include invalid invoices too
+    const invalidInvoices = await InvoiceModel.count({
+      where: userRole === 'Seller' ? 
+        { sellerId, status: 'invalid' } : 
+        { status: 'invalid' }
+    });
+
+    const totalProcessedInvoices = submittedInvoicesCount + invalidInvoices;
+    const fbrSuccessRate = totalProcessedInvoices > 0 
+      ? ((submittedInvoicesCount / totalProcessedInvoices) * 100).toFixed(1)
+      : 0;
+
+    // Get active sellers (only for admin)
+    let activeSellers = 0;
+    let newSellersThisMonth = 0;
+    
+    if (userRole === 'Admin') {
+      const { Seller } = await import('../user/model.seller.js');
+      
+      // Get total active sellers
+      activeSellers = await Seller.count({
+        where: { isActive: true }
+      });
+
+      // Get new sellers this month
+      const currentDate = new Date();
+      const startOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
+      
+      newSellersThisMonth = await Seller.count({
+        where: {
+          isActive: true,
+          createdAt: {
+            [Op.gte]: startOfMonth
+          }
+        }
+      });
+    }
+
+    // Get monthly invoice volume for last 6 months
+    const monthlyData = [];
+    const currentDate = new Date();
+    
+    for (let i = 5; i >= 0; i--) {
+      const monthDate = new Date(currentDate.getFullYear(), currentDate.getMonth() - i, 1);
+      const nextMonthDate = new Date(currentDate.getFullYear(), currentDate.getMonth() - i + 1, 1);
+      
+      const monthInvoices = await InvoiceModel.findAll({
+        where: {
+          ...whereClause,
+          invoiceDate: {
+            [Op.gte]: monthDate,
+            [Op.lt]: nextMonthDate
+          }
+        },
+        attributes: ['totalAmount']
+      });
+
+      const monthInvoiceCount = monthInvoices.length;
+      const monthRevenue = monthInvoices.reduce((sum, invoice) => {
+        return sum + parseFloat(invoice.totalAmount || 0);
+      }, 0);
+
+      monthlyData.push({
+        month: monthDate.toLocaleDateString('en-US', { month: 'short' }),
+        invoices: monthInvoiceCount,
+        revenue: parseFloat(monthRevenue.toFixed(0))
+      });
+    }
+
+    // Get top performing data based on user role
+    let topPerformers = [];
+    
+    if (userRole === 'Admin') {
+      // Get top performing sellers
+      const { Seller } = await import('../user/model.seller.js');
+      
+      const topSellers = await Seller.findAll({
+        where: { isActive: true },
+        include: [{
+          model: InvoiceModel,
+          as: 'invoices',
+          attributes: ['id', 'totalAmount', 'status'],
+          required: false
+        }],
+        limit: 5
+      });
+
+      topPerformers = topSellers.map(seller => {
+        const sellerInvoices = seller.invoices || [];
+        const totalInvoices = sellerInvoices.length;
+        const totalRevenue = sellerInvoices.reduce((sum, inv) => sum + parseFloat(inv.totalAmount || 0), 0);
+        const successfulInvoices = sellerInvoices.filter(inv => inv.status === 'submitted').length;
+        const successRate = totalInvoices > 0 ? Math.round((successfulInvoices / totalInvoices) * 100) : 0;
+
+        return {
+          name: seller.businessName,
+          invoices: totalInvoices,
+          revenue: parseFloat(totalRevenue.toFixed(0)),
+          successRate: successRate
+        };
+      }).sort((a, b) => b.invoices - a.invoices);
+
+    } else {
+      // Get top performing products for seller
+      const topProducts = await InvoiceItemModel.findAll({
+        where: {
+          '$invoice.sellerId$': sellerId
+        },
+        include: [{
+          model: InvoiceModel,
+          as: 'invoice',
+          attributes: ['id', 'status'],
+          where: whereClause
+        }],
+        attributes: [
+          'productDescription',
+          [fn('COUNT', fn('DISTINCT', col(`${InvoiceItemModel.name}.id`))), 'totalQuantity'],
+          [fn('SUM', col(`${InvoiceItemModel.name}.totalValues`)), 'totalRevenue']
+        ],
+        group: [`${InvoiceItemModel.name}.productDescription`],
+        order: [[fn('COUNT', fn('DISTINCT', col(`${InvoiceItemModel.name}.id`))), 'DESC']],
+        limit: 5
+      });
+
+      topPerformers = topProducts.map(product => ({
+        name: product.productDescription,
+        quantity: parseInt(product.dataValues.totalQuantity),
+        revenue: parseFloat(parseFloat(product.dataValues.totalRevenue || 0).toFixed(0))
+      }));
+    }
+
+    // Calculate trends (comparing current month with previous month)
+    const currentMonth = monthlyData[monthlyData.length - 1];
+    const previousMonth = monthlyData[monthlyData.length - 2];
+    
+    const invoiceTrend = previousMonth ? 
+      ((currentMonth.invoices - previousMonth.invoices) / previousMonth.invoices * 100).toFixed(0) : 0;
+    
+    const revenueTrend = previousMonth ? 
+      ((currentMonth.revenue - previousMonth.revenue) / previousMonth.revenue * 100).toFixed(0) : 0;
+
+    return {
+      // Key Performance Indicators
+      totalInvoices: {
+        value: totalInvoices,
+        trend: `${invoiceTrend > 0 ? '+' : ''}${invoiceTrend}% from last month`
+      },
+      totalRevenue: {
+        value: parseFloat(totalRevenue.toFixed(0)),
+        trend: `${revenueTrend > 0 ? '+' : ''}${revenueTrend}% from last month`
+      },
+      fbrSuccessRate: {
+        value: parseFloat(fbrSuccessRate),
+        detail: `${submittedInvoicesCount} of ${totalProcessedInvoices} successful`
+      },
+      activeSellers: userRole === 'Admin' ? {
+        value: activeSellers,
+        detail: `+${newSellersThisMonth} new this month`
+      } : null,
+
+      // Detailed Trends
+      monthlyInvoiceVolume: {
+        subtitle: "Invoice count and revenue trends over the last 6 months",
+        data: monthlyData
+      },
+      
+      topPerformers: {
+        subtitle: userRole === 'Admin' ? 
+          "Sellers with highest invoice volume and revenue" : 
+          "Products with highest sales volume and revenue",
+        data: topPerformers
+      }
+    };
+
+  } catch (error) {
+    console.error('Reports analytics error:', error);
+    throw new Error('Failed to retrieve reports and analytics data');
   }
 }

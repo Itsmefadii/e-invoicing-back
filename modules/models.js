@@ -9,6 +9,7 @@ import './systemConfigs/model/model.businessNature.js';
 import './systemConfigs/model/model.industry.js';
 import './systemConfigs/model/model.state.js';
 import './systemConfigs/model/model.hsCode.js';
+import './systemConfigs/model/model.hsUom.js';
 import { User } from './user/model.js';
 import { Seller } from './user/model.seller.js';
 import { Invoice } from './invoice/model.js';
@@ -22,6 +23,7 @@ import { BusinessNature } from './systemConfigs/model/model.businessNature.js';
 import { Industry } from './systemConfigs/model/model.industry.js';
 import { State } from './systemConfigs/model/model.state.js';
 import { HsCode } from './systemConfigs/model/model.hsCode.js';
+import { HsUom } from './systemConfigs/model/model.hsUom.js';
 
 // Associations
 Seller.hasMany(User, { foreignKey: 'sellerId', as: 'users' });
@@ -61,7 +63,7 @@ SandboxInvoice.belongsTo(Seller, { foreignKey: 'sellerId', as: 'seller' });
 SandboxInvoice.hasMany(SandboxInvoiceItem, { foreignKey: 'invoiceId', as: 'items' });
 SandboxInvoiceItem.belongsTo(SandboxInvoice, { foreignKey: 'invoiceId', as: 'invoice' });
 
-export { User, Seller, Invoice, InvoiceItem, SandboxInvoice, SandboxInvoiceItem, Role, BusinessNature, Industry, State, HsCode };
+export { User, Seller, Invoice, InvoiceItem, SandboxInvoice, SandboxInvoiceItem, Role, BusinessNature, Industry, State, HsCode, HsUom };
 
 // No hard foreign keys between RolePermission and Permission to keep it simple
 export { Permission, RolePermission };

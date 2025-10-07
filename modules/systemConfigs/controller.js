@@ -20,7 +20,10 @@ import {
   updateHsCode,
   deleteHsCode,
   populateHsCodesFromFBR,
-  fetchSaleType
+  fetchSaleType,
+  populateHsUomsFromFBR,
+  getAllHsUoms,
+  getHsUomsByHsCode
 } from './services.js';
 import { sendSuccess, sendError, sendCreated, sendNotFoundError } from '../../lib/utils/response.js';
 
@@ -451,6 +454,47 @@ export async function fetchSaleTypeHandler(request, reply) {
   try {
     const result = await fetchSaleType(request);
     return sendSuccess(reply, result, 'Sale types fetched successfully');
+  } catch (error) {
+    return sendError(reply, error.message, 500);
+  }
+}
+
+// HsUom Controllers
+export async function populateHsUomsFromFBRHandler(request, reply) {
+  try {
+    // User data is automatically available in request.user
+    console.log('User populating HsUoms from FBR API:', {
+      userId: request.user.id,
+      userName: request.user.fullName,
+      userRole: request.user.roleName
+    });
+
+    const result = await populateHsUomsFromFBR(request);
+    return sendSuccess(reply, result, 'HsUoms populated successfully from FBR API');
+  } catch (error) {
+    return sendError(reply, error.message, 500);
+  }
+}
+
+export async function getAllHsUomsHandler(request, reply) {
+  try {
+    const hsUoms = await getAllHsUoms();
+    return sendSuccess(reply, hsUoms, 'HsUoms retrieved successfully');
+  } catch (error) {
+    return sendError(reply, error.message, 500);
+  }
+}
+
+export async function getHsUomsByHsCodeHandler(request, reply) {
+  try {
+    const { hsCode } = request.params;
+    
+    if (!hsCode) {
+      return sendError(reply, 'HS Code is required', 400);
+    }
+
+    const hsUoms = await getHsUomsByHsCode(hsCode);
+    return sendSuccess(reply, hsUoms, `HsUoms for HS Code ${hsCode} retrieved successfully`);
   } catch (error) {
     return sendError(reply, error.message, 500);
   }

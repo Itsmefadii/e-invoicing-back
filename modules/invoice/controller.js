@@ -1,4 +1,4 @@
-import { listInvoicesService, getInvoiceByIdService, postInvoiceService, createInvoiceService, updateInvoiceService, deleteInvoiceService, getDashboardStatsService } from './services.js';
+import { listInvoicesService, getInvoiceByIdService, postInvoiceService, createInvoiceService, updateInvoiceService, deleteInvoiceService, getDashboardStatsService, getReportsAnalyticsService } from './services.js';
 import { 
   sendSuccess, 
   sendValidationError,
@@ -128,6 +128,16 @@ export async function getDashboardStatsHandler(request, reply) {
   } catch (error) {
     console.error('Dashboard stats error:', error);
     return sendError(reply, 'Failed to retrieve dashboard statistics. Please try again later.');
+  }
+}
+
+export async function getReportsAnalyticsHandler(request, reply) {
+  try {
+    const analytics = await getReportsAnalyticsService(request);
+    return sendSuccess(reply, analytics, 'Reports and analytics data retrieved successfully');
+  } catch (error) {
+    console.error('Reports analytics error:', error);
+    return sendError(reply, 'Failed to retrieve reports and analytics data. Please try again later.');
   }
 }
 

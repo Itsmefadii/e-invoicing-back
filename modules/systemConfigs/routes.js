@@ -20,7 +20,10 @@ import {
   updateHsCodeHandler,
   deleteHsCodeHandler,
   populateHsCodesFromFBRHandler,
-  fetchSaleTypeHandler
+  fetchSaleTypeHandler,
+  populateHsUomsFromFBRHandler,
+  getAllHsUomsHandler,
+  getHsUomsByHsCodeHandler
 } from './controller.js';
 
 export async function systemConfigsRoutes(fastify, options) {
@@ -145,6 +148,34 @@ export async function systemConfigsRoutes(fastify, options) {
       if (req.method == "GET") {
       fetchSaleTypeHandler(req, reply);
       }
+    },
+  });
+
+  // HsUom routes
+  fastify.route({
+    method: "POST",
+    url: "/hs-uoms/populate-from-fbr",
+    handler: (req, reply) => {
+      console.log('Populating HsUoms from FBR API');
+      populateHsUomsFromFBRHandler(req, reply);
+    },
+  });
+
+  fastify.route({
+    method: "GET",
+    url: "/hs-uoms",
+    handler: (req, reply) => {
+      console.log('Fetching all HsUoms');
+      getAllHsUomsHandler(req, reply);
+    },
+  });
+
+  fastify.route({
+    method: "GET",
+    url: "/hs-uoms/:hsCode",
+    handler: (req, reply) => {
+      console.log('Fetching HsUoms by HS Code:', req.params.hsCode);
+      getHsUomsByHsCodeHandler(req, reply);
     },
   });
 }
