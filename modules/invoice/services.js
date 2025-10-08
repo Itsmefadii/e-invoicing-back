@@ -473,9 +473,12 @@ export async function getDashboardStatsService(req) {
       totalUsers = await User.count();
     }
 
-    // Get total revenue from submitted invoices
+    // Get total revenue from submitted invoices only
     const submittedInvoices = await InvoiceModel.findAll({
-      where: whereClause,
+      where: {
+        ...whereClause,
+        status: 'submitted'
+      },
       attributes: ['totalAmount']
     });
 
@@ -519,6 +522,49 @@ export async function getDashboardStatsService(req) {
       }
     });
 
+    // Calculate month-over-month percentage increase
+    const currentDate = new Date();
+    const currentMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
+    const lastMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1);
+    const nextMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1);
+
+    // Get current month data
+    const currentMonthInvoices = await InvoiceModel.findAll({
+      where: {
+        ...whereClause,
+        invoiceDate: {
+          [Op.gte]: currentMonth,
+          [Op.lt]: nextMonth
+        }
+      },
+      attributes: ['totalAmount']
+    });
+
+    const currentMonthRevenue = currentMonthInvoices.reduce((sum, invoice) => {
+      return sum + parseFloat(invoice.totalAmount || 0);
+    }, 0);
+
+    // Get last month data
+    const lastMonthInvoices = await InvoiceModel.findAll({
+      where: {
+        ...whereClause,
+        invoiceDate: {
+          [Op.gte]: lastMonth,
+          [Op.lt]: currentMonth
+        }
+      },
+      attributes: ['totalAmount']
+    });
+
+    const lastMonthRevenue = lastMonthInvoices.reduce((sum, invoice) => {
+      return sum + parseFloat(invoice.totalAmount || 0);
+    }, 0);
+
+    // Calculate percentage increase
+    const revenueIncreasePercentage = lastMonthRevenue > 0 
+      ? ((currentMonthRevenue - lastMonthRevenue) / lastMonthRevenue * 100).toFixed(1)
+      : currentMonthRevenue > 0 ? 100 : 0;
+
     return {
       totalInvoices,
       totalUsers,
@@ -527,7 +573,10 @@ export async function getDashboardStatsService(req) {
       pendingInvoices,
       submittedInvoices: submittedInvoicesCount,
       invalidInvoices,
-      validInvoices
+      validInvoices,
+      revenueIncreasePercentage: parseFloat(revenueIncreasePercentage),
+      currentMonthRevenue: parseFloat(currentMonthRevenue.toFixed(2)),
+      lastMonthRevenue: parseFloat(lastMonthRevenue.toFixed(2))
     };
 
   } catch (error) {
@@ -603,7 +652,7 @@ export async function getReportsAnalyticsService(req) {
       });
     }
 
-    // Get monthly invoice volume for last 6 months
+    // Get monthly invoice volume for last 6 months based on invoice date
     const monthlyData = [];
     const currentDate = new Date();
     
@@ -611,6 +660,7 @@ export async function getReportsAnalyticsService(req) {
       const monthDate = new Date(currentDate.getFullYear(), currentDate.getMonth() - i, 1);
       const nextMonthDate = new Date(currentDate.getFullYear(), currentDate.getMonth() - i + 1, 1);
       
+      // Get submitted invoices for this month based on invoice date
       const monthInvoices = await InvoiceModel.findAll({
         where: {
           ...whereClause,
@@ -619,7 +669,8 @@ export async function getReportsAnalyticsService(req) {
             [Op.lt]: nextMonthDate
           }
         },
-        attributes: ['totalAmount']
+        attributes: ['id', 'totalAmount', 'invoiceDate', 'invoiceRefNo'],
+        order: [['invoiceDate', 'ASC']]
       });
 
       const monthInvoiceCount = monthInvoices.length;
@@ -627,10 +678,23 @@ export async function getReportsAnalyticsService(req) {
         return sum + parseFloat(invoice.totalAmount || 0);
       }, 0);
 
+      // Get additional month statistics
+      const monthYear = monthDate.getFullYear();
+      const monthName = monthDate.toLocaleDateString('en-US', { month: 'short' });
+      
       monthlyData.push({
-        month: monthDate.toLocaleDateString('en-US', { month: 'short' }),
+        month: monthName,
+        year: monthYear,
+        monthYear: `${monthName} ${monthYear}`,
         invoices: monthInvoiceCount,
-        revenue: parseFloat(monthRevenue.toFixed(0))
+        revenue: parseFloat(monthRevenue.toFixed(0)),
+        averageInvoiceValue: monthInvoiceCount > 0 ? parseFloat((monthRevenue / monthInvoiceCount).toFixed(2)) : 0,
+        invoiceDetails: monthInvoices.map(invoice => ({
+          id: invoice.id,
+          invoiceRefNo: invoice.invoiceRefNo,
+          totalAmount: parseFloat(invoice.totalAmount || 0),
+          invoiceDate: invoice.invoiceDate
+        }))
       });
     }
 
@@ -727,7 +791,7 @@ export async function getReportsAnalyticsService(req) {
 
       // Detailed Trends
       monthlyInvoiceVolume: {
-        subtitle: "Invoice count and revenue trends over the last 6 months",
+        subtitle: "Invoice count and revenue trends over the last 6 months (based on invoice date)",
         data: monthlyData
       },
       
