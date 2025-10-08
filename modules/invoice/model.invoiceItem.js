@@ -24,7 +24,7 @@ InvoiceItem.init(
       allowNull: false,
     },
     rate: {
-      type: DataTypes.DECIMAL(12, 2),
+      type: DataTypes.STRING(50), // Changed to STRING to handle percentage values like "18%"
       allowNull: false,
     },
     uoM: {

@@ -5,11 +5,118 @@ import { sequelize } from '../../lib/db/sequelize.js';
 import { getInvoiceModelsFromUser } from '../../lib/utils/invoiceModels.js';
 
 /**
+ * Validate mandatory field values for a row
+ * @param {Object} rowData - Row data to validate
+ * @param {number} rowNumber - Row number for error reporting
+ * @param {Object} user - User object to check tokenType
+ * @throws {Error} If mandatory field values are missing
+ */
+function validateMandatoryValues(rowData, rowNumber, user) {
+  // Define mandatory fields (all fields except the optional ones)
+  const mandatoryFields = [
+    'invoiceType', 'invoiceDate', 'buyerNTNCNIC', 'buyerBusinessName', 'buyerProvince',
+    'buyerAddress', 'buyerRegistrationType', 'invoiceRefNo',
+    'hsCode', 'productDescription', 'rate', 'uoM', 'quantity', 'totalValues',
+    'valueSalesExcludingST', 'fixedNotifiedValueOrRetailPrice', 'salesTaxApplicable',
+    'salesTaxWithheldAtSource', 'discount', 'saleType', 'sroItemSerialNo'
+  ];
+  
+  // Add scenarioId to mandatory fields only for non-production users
+  if (user.fbrTokenType !== 'production') {
+    mandatoryFields.splice(8, 0, 'scenarioId'); // Insert after invoiceRefNo
+  }
+  
+  const missingFields = [];
+  
+  for (const field of mandatoryFields) {
+    const value = rowData[field];
+    if (!value || (typeof value === 'string' && value.trim() === '')) {
+      missingFields.push(field);
+    }
+  }
+  
+  if (missingFields.length > 0) {
+    throw new Error(`Row ${rowNumber}: Missing mandatory values for fields: ${missingFields.join(', ')}`);
+  }
+}
+
+/**
+ * Validate buyer data consistency for the same invoice
+ * @param {Object} invoiceGroups - Grouped invoice data
+ * @param {Object} rowData - Current row data
+ * @param {string} invoiceRefNo - Invoice reference number
+ * @throws {Error} If inconsistent buyer data is found
+ */
+function validateBuyerDataConsistency(invoiceGroups, rowData, invoiceRefNo) {
+  const group = invoiceGroups[invoiceRefNo];
+  
+  if (group.master) {
+    // Check if buyer data is consistent with existing master data
+    if (group.master.buyerBusinessName !== rowData.buyerBusinessName) {
+      throw new Error(`Invoice ${invoiceRefNo}: Inconsistent buyer business name. Found "${rowData.buyerBusinessName}" but expected "${group.master.buyerBusinessName}"`);
+    }
+    
+    if (group.master.buyerNTNCNIC !== rowData.buyerNTNCNIC) {
+      throw new Error(`Invoice ${invoiceRefNo}: Inconsistent buyer NTN/CNIC. Found "${rowData.buyerNTNCNIC}" but expected "${group.master.buyerNTNCNIC}"`);
+    }
+  }
+}
+
+/**
+ * Handle percentage conversion for rate field
+ * @param {any} rateValue - The rate value from Excel
+ * @returns {string} - Formatted rate as percentage string or original value
+ */
+function handlePercentageRate(rateValue) {
+  if (!rateValue && rateValue !== 0) {
+    return rateValue;
+  }
+  
+  // Convert to string for processing
+  const rateStr = String(rateValue).trim();
+  
+  // Case 1: Already contains % symbol - return as is
+  if (rateStr.includes('%')) {
+    return rateStr;
+  }
+  
+  // Case 2: Check if it's a decimal that should be converted to percentage
+  const numericValue = parseFloat(rateStr);
+  
+  if (!isNaN(numericValue)) {
+    // If the value is between 0 and 1 (exclusive), it's likely a decimal percentage
+    // Convert to percentage format
+    if (numericValue > 0 && numericValue < 1) {
+      const percentage = Math.round(numericValue * 100);
+      return `${percentage}%`;
+    }
+    
+    // If the value is between 1 and 100, it might be a percentage without % symbol
+    // But we'll be conservative and only convert obvious decimals
+    if (numericValue >= 1 && numericValue <= 100 && rateStr.includes('.')) {
+      // Check if it looks like a decimal percentage (e.g., 0.18, 0.15)
+      const decimalPart = rateStr.split('.')[1];
+      if (decimalPart && decimalPart.length <= 2) {
+        const percentage = Math.round(numericValue * 100);
+        return `${percentage}%`;
+      }
+    }
+    
+    // For other numeric values, return as string
+    return rateStr;
+  }
+  
+  // For non-numeric values, return as is
+  return rateStr;
+}
+
+/**
  * Parse Excel file and extract invoice data
  * @param {Buffer} fileBuffer - Excel file buffer
+ * @param {Object} user - User object containing fbrTokenType
  * @returns {Array} Parsed invoice data
  */
-export function parseExcelFile(fileBuffer) {
+export function parseExcelFile(fileBuffer, user) {
   try {
     // Read Excel file
     const workbook = XLSX.read(fileBuffer, { type: 'buffer' });
@@ -31,19 +138,26 @@ export function parseExcelFile(fileBuffer) {
     // Get headers (first row)
     const headers = jsonData[0];
     
-    // Validate required headers
-    const requiredHeaders = [
+    // Define all headers that must be present in the Excel file
+    const allHeaders = [
       'invoiceType', 'invoiceDate', 'buyerNTNCNIC', 'buyerBusinessName', 'buyerProvince',
-      'buyerAddress', 'buyerRegistrationType', 'invoiceRefNo', 'scenarioId',
+      'buyerAddress', 'buyerRegistrationType', 'invoiceRefNo',
       'hsCode', 'productDescription', 'rate', 'uoM', 'quantity', 'totalValues',
       'valueSalesExcludingST', 'fixedNotifiedValueOrRetailPrice', 'salesTaxApplicable',
       'salesTaxWithheldAtSource', 'extraTax', 'furtherTax', 'sroScheduleNo',
       'fedPayable', 'discount', 'saleType', 'sroItemSerialNo'
     ];
     
-    const missingHeaders = requiredHeaders.filter(header => !headers.includes(header));
+    // Add scenarioId to headers only for non-production users
+    const headersToCheck = [...allHeaders];
+    if (user.fbrTokenType !== 'production') {
+      headersToCheck.splice(8, 0, 'scenarioId'); // Insert after invoiceRefNo
+    }
+    
+    // Check if all headers are present (including optional ones)
+    const missingHeaders = headersToCheck.filter(header => !headers.includes(header));
     if (missingHeaders.length > 0) {
-      throw new Error(`Missing required headers: ${missingHeaders.join(', ')}`);
+      throw new Error(`Missing headers: ${missingHeaders.join(', ')}`);
     }
     
     // Group data by invoice (invoiceRefNo)
@@ -67,6 +181,12 @@ export function parseExcelFile(fileBuffer) {
           items: []
         };
       }
+      
+      // Validate mandatory field values
+      validateMandatoryValues(rowData, i + 1, user);
+      
+      // Validate buyer data consistency for the same invoice
+      validateBuyerDataConsistency(invoiceGroups, rowData, invoiceRefNo);
       
        // Extract master data (same for all items in an invoice)
        if (!invoiceGroups[invoiceRefNo].master) {
@@ -157,7 +277,8 @@ export function parseExcelFile(fileBuffer) {
            invoiceDate = new Date(); // Fallback to current date
          }
          
-         invoiceGroups[invoiceRefNo].master = {
+         // Create master data object
+         const masterData = {
            invoiceType: rowData.invoiceType,
            invoiceDate: invoiceDate,
            buyerNTNCNIC: rowData.buyerNTNCNIC,
@@ -165,16 +286,22 @@ export function parseExcelFile(fileBuffer) {
            buyerProvince: rowData.buyerProvince,
            buyerAddress: rowData.buyerAddress,
            buyerRegistrationType: rowData.buyerRegistrationType,
-           invoiceRefNo: rowData.invoiceRefNo,
-           scenarioId: parseInt(rowData.scenarioId)
+           invoiceRefNo: rowData.invoiceRefNo
          };
+         
+         // Only include scenarioId for non-production users
+         if (user.fbrTokenType !== 'production') {
+           masterData.scenarioId = parseInt(rowData.scenarioId);
+         }
+         
+         invoiceGroups[invoiceRefNo].master = masterData;
        }
       
       // Extract item data
       const item = {
         hsCode: rowData.hsCode,
         productDescription: rowData.productDescription,
-        rate: parseFloat(rowData.rate),
+        rate: handlePercentageRate(rowData.rate), // Handle percentage conversion
         uoM: rowData.uoM,
         quantity: parseFloat(rowData.quantity),
         totalValues: parseFloat(rowData.totalValues),
@@ -182,10 +309,11 @@ export function parseExcelFile(fileBuffer) {
         fixedNotifiedValueOrRetailPrice: parseFloat(rowData.fixedNotifiedValueOrRetailPrice),
          salesTaxApplicable: rowData.salesTaxApplicable === 'Yes' || rowData.salesTaxApplicable === true || rowData.salesTaxApplicable === 1,
         salesTaxWithheldAtSource: parseFloat(rowData.salesTaxWithheldAtSource || 0),
-         extraTax: parseFloat(rowData.extraTax || 0),
-        furtherTax: parseFloat(rowData.furtherTax || 0),
-        sroScheduleNo: parseInt(rowData.sroScheduleNo),
-        fedPayable: parseFloat(rowData.fedPayable || 0),
+        // Optional fields - handle empty values properly
+        extraTax: rowData.extraTax && rowData.extraTax.toString().trim() !== '' ? parseFloat(rowData.extraTax) : 0,
+        furtherTax: rowData.furtherTax && rowData.furtherTax.toString().trim() !== '' ? parseFloat(rowData.furtherTax) : 0,
+        sroScheduleNo: rowData.sroScheduleNo && rowData.sroScheduleNo.toString().trim() !== '' ? parseInt(rowData.sroScheduleNo) : 0,
+        fedPayable: rowData.fedPayable && rowData.fedPayable.toString().trim() !== '' ? parseFloat(rowData.fedPayable) : 0,
         discount: parseFloat(rowData.discount || 0),
         saleType: rowData.saleType,
         sroItemSerialNo: rowData.sroItemSerialNo
@@ -282,8 +410,17 @@ export async function saveInvoiceData(invoiceGroups, sellerId, user) {
     
     await transaction.commit();
     
+    // Filter scenarioId from response for production users
+    const filteredInvoices = createdInvoices.map(invoice => {
+      const invoiceData = invoice.toJSON();
+      if (user.fbrTokenType === 'production') {
+        delete invoiceData.scenarioId;
+      }
+      return invoiceData;
+    });
+    
     return {
-      invoices: createdInvoices,
+      invoices: filteredInvoices,
       items: createdItems,
       summary: {
         totalInvoices: createdInvoices.length,
@@ -307,7 +444,7 @@ export async function saveInvoiceData(invoiceGroups, sellerId, user) {
 export async function processExcelUpload(fileBuffer, sellerId, user) {
   try {
     // Parse Excel file
-    const invoiceGroups = parseExcelFile(fileBuffer);
+    const invoiceGroups = parseExcelFile(fileBuffer, user);
     
     if (invoiceGroups.length === 0) {
       throw new Error('No valid invoice data found in Excel file');

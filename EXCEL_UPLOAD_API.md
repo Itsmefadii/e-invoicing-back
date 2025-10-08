@@ -75,7 +75,7 @@ The Excel file must contain these exact column headers:
 **Item Details Fields (can vary for each item):**
 - `hsCode` - HS Code for the product
 - `productDescription` - Description of the product
-- `rate` - Unit rate/price (numeric)
+- `rate` - Unit rate/price (numeric, percentage like "18%", or decimal like 0.18)
 - `uoM` - Unit of measurement (PCS, KG, L, etc.)
 - `quantity` - Quantity (numeric)
 - `totalValues` - Total value (rate × quantity)
@@ -83,10 +83,10 @@ The Excel file must contain these exact column headers:
 - `fixedNotifiedValueOrRetailPrice` - Fixed notified value or retail price
 - `salesTaxApplicable` - Yes or No
 - `salesTaxWithheldAtSource` - Sales tax withheld at source (numeric)
-- `extraTax` - Extra tax amount (numeric)
-- `furtherTax` - Further tax amount (numeric)
-- `sroScheduleNo` - SRO schedule number (numeric)
-- `fedPayable` - FED payable amount (numeric)
+- `extraTax` - Extra tax amount (numeric, optional)
+- `furtherTax` - Further tax amount (numeric, optional)
+- `sroScheduleNo` - SRO schedule number (numeric, optional)
+- `fedPayable` - FED payable amount (numeric, optional)
 - `discount` - Discount amount (numeric)
 - `saleType` - Type of sale (Retail, Wholesale, Industrial)
 - `sroItemSerialNo` - SRO item serial number
@@ -94,8 +94,8 @@ The Excel file must contain these exact column headers:
 ### Sample Data
 ```csv
 invoiceType,invoiceDate,buyerNTNCNIC,buyerBusinessName,buyerProvince,buyerAddress,buyerRegistrationType,invoiceRefNo,scenarioId,hsCode,productDescription,rate,uoM,quantity,totalValues,valueSalesExcludingST,fixedNotifiedValueOrRetailPrice,salesTaxApplicable,salesTaxWithheldAtSource,extraTax,furtherTax,sroScheduleNo,fedPayable,discount,saleType,sroItemSerialNo
-SALES,2024-01-15,1234567890123,ABC Trading Company,Sindh,123 Main Street Karachi,REGISTERED,INV-001,1,1234.56,Office Supplies,150.00,PCS,10,1500.00,1500.00,1500.00,Yes,0.00,0.00,0.00,1,0.00,0.00,Retail,001
-SALES,2024-01-15,1234567890123,ABC Trading Company,Sindh,123 Main Street Karachi,REGISTERED,INV-001,1,5678.90,Computer Accessories,250.00,PCS,5,1250.00,1250.00,1250.00,Yes,0.00,0.00,0.00,2,0.00,0.00,Retail,002
+SALES,2024-01-15,1234567890123,ABC Trading Company,Sindh,123 Main Street Karachi,REGISTERED,INV-001,1,1234.56,Office Supplies,18%,PCS,10,1500.00,1500.00,1500.00,Yes,0.00,,,0.00,Retail,001
+SALES,2024-01-15,1234567890123,ABC Trading Company,Sindh,123 Main Street Karachi,REGISTERED,INV-001,1,5678.90,Computer Accessories,0.15,PCS,5,1250.00,1250.00,1250.00,Yes,0.00,,,0.00,Retail,002
 ```
 
 ## Data Processing Logic
@@ -111,8 +111,23 @@ SALES,2024-01-15,1234567890123,ABC Trading Company,Sindh,123 Main Street Karachi
 - Numeric fields must not contain currency symbols or commas
 - Boolean fields must be "Yes" or "No"
 - File size limit: 10MB
+- **Invoice Consistency**: All items with the same `invoiceRefNo` must have identical `buyerBusinessName` and `buyerNTNCNIC` values
+- **Optional Fields**: `extraTax`, `furtherTax`, `sroScheduleNo`, and `fedPayable` can be left empty and will default to 0
+- **Mandatory Values**: All mandatory fields must have values - empty values will cause validation errors
 
-### 3. Database Storage
+### 3. Percentage Handling for Rate Field
+The rate field supports multiple formats:
+- **Percentage strings**: "18%", "15.5%" - stored as-is
+- **Decimal percentages**: 0.18, 0.155 - automatically converted to "18%", "16%" (rounded)
+- **Regular numbers**: 150.00, 25 - stored as string values
+
+**Examples:**
+- Input: "18%" → Stored: "18%"
+- Input: 0.18 → Stored: "18%"
+- Input: 0.155 → Stored: "16%" (rounded)
+- Input: 150.00 → Stored: "150.00"
+
+### 4. Database Storage
 - Each invoice group creates one `Invoice` record
 - Each item creates one `InvoiceItem` record
 - Total amount is calculated as sum of all item values
@@ -126,10 +141,12 @@ SALES,2024-01-15,1234567890123,ABC Trading Company,Sindh,123 Main Street Karachi
 - **500 Internal Server Error**: Processing errors, database errors
 
 ### Validation Errors
-- Missing required headers
-- Invalid data formats
-- Empty invoice data
-- Database constraint violations
+- **Missing required headers**: Required column headers not found in Excel file
+- **Missing mandatory values**: Empty values in mandatory fields
+- **Invalid data formats**: Incorrect data types or formats
+- **Empty invoice data**: No valid data rows found
+- **Database constraint violations**: Data that violates database constraints
+- **Invoice consistency errors**: Different buyer data for the same invoice reference number
 
 ## Security Features
 

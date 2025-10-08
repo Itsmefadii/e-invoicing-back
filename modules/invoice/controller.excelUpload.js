@@ -75,81 +75,108 @@ export async function uploadExcelController(request, reply) {
  */
 export async function getUploadTemplateController(request, reply) {
   try {
+    // Base required headers
+    const baseHeaders = [
+      'invoiceType', 'invoiceDate', 'buyerNTNCNIC', 'buyerBusinessName', 'buyerProvince',
+      'buyerAddress', 'buyerRegistrationType', 'invoiceRefNo',
+      'hsCode', 'productDescription', 'rate', 'uoM', 'quantity', 'totalValues',
+      'valueSalesExcludingST', 'fixedNotifiedValueOrRetailPrice', 'salesTaxApplicable',
+      'salesTaxWithheldAtSource', 'extraTax', 'furtherTax', 'sroScheduleNo',
+      'fedPayable', 'discount', 'saleType', 'sroItemSerialNo'
+    ];
+    
+    // Add scenarioId only for non-production users
+    const requiredHeaders = [...baseHeaders];
+    if (request.user.fbrTokenType !== 'production') {
+      requiredHeaders.splice(8, 0, 'scenarioId'); // Insert after invoiceRefNo
+    }
+    
+    // Create field descriptions
+    const fieldDescriptions = {
+      // Master data fields
+      invoiceType: 'Type of invoice (e.g., SALES, PURCHASE)',
+      invoiceDate: 'Date of invoice (YYYY-MM-DD format)',
+      buyerNTNCNIC: 'Buyer NTN or CNIC number',
+      buyerBusinessName: 'Buyer business name',
+      buyerProvince: 'Buyer province/state',
+      buyerAddress: 'Buyer complete address',
+      buyerRegistrationType: 'REGISTERED or UNREGISTERED',
+      invoiceRefNo: 'Unique invoice reference number',
+      hsCode: 'HS Code for the product',
+      productDescription: 'Description of the product',
+      rate: 'Unit rate/price (numeric or percentage like "18%" or decimal like 0.18)',
+      uoM: 'Unit of measurement (PCS, KG, L, etc.)',
+      quantity: 'Quantity (numeric)',
+      totalValues: 'Total value (rate × quantity)',
+      valueSalesExcludingST: 'Sales value excluding sales tax',
+      fixedNotifiedValueOrRetailPrice: 'Fixed notified value or retail price',
+      salesTaxApplicable: 'Yes or No',
+      salesTaxWithheldAtSource: 'Sales tax withheld at source (numeric)',
+        extraTax: 'Extra tax amount (numeric, optional)',
+        furtherTax: 'Further tax amount (numeric, optional)',
+        sroScheduleNo: 'SRO schedule number (numeric, optional)',
+        fedPayable: 'FED payable amount (numeric, optional)',
+      discount: 'Discount amount (numeric)',
+      saleType: 'Type of sale (Retail, Wholesale, Industrial)',
+      sroItemSerialNo: 'SRO item serial number'
+    };
+    
+    // Add scenarioId description only for non-production users
+    if (request.user.fbrTokenType !== 'production') {
+      fieldDescriptions.scenarioId = 'Scenario ID (numeric)';
+    }
+    
+    // Create sample data
+    const sampleData = {
+      invoiceType: 'SALES',
+      invoiceDate: '2024-01-15',
+      buyerNTNCNIC: '1234567890123',
+      buyerBusinessName: 'ABC Trading Company',
+      buyerProvince: 'Sindh',
+      buyerAddress: '123 Main Street Karachi',
+      buyerRegistrationType: 'REGISTERED',
+      invoiceRefNo: 'INV-001',
+      hsCode: '1234.56',
+      productDescription: 'Office Supplies',
+      rate: '18%',
+      uoM: 'PCS',
+      quantity: '10',
+      totalValues: '1500.00',
+      valueSalesExcludingST: '1500.00',
+      fixedNotifiedValueOrRetailPrice: '1500.00',
+      salesTaxApplicable: 'Yes',
+      salesTaxWithheldAtSource: '0.00',
+        extraTax: '',
+        furtherTax: '',
+        sroScheduleNo: '',
+        fedPayable: '',
+      discount: '0.00',
+      saleType: 'Retail',
+      sroItemSerialNo: '001'
+    };
+    
+    // Add scenarioId to sample data only for non-production users
+    if (request.user.fbrTokenType !== 'production') {
+      sampleData.scenarioId = '1';
+    }
+    
     const template = {
-      requiredHeaders: [
-        'invoiceType', 'invoiceDate', 'buyerNTNCNIC', 'buyerBusinessName', 'buyerProvince',
-        'buyerAddress', 'buyerRegistrationType', 'invoiceRefNo', 'scenarioId',
-        'hsCode', 'productDescription', 'rate', 'uoM', 'quantity', 'totalValues',
-        'valueSalesExcludingST', 'fixedNotifiedValueOrRetailPrice', 'salesTaxApplicable',
-        'salesTaxWithheldAtSource', 'extraTax', 'furtherTax', 'sroScheduleNo',
-        'fedPayable', 'discount', 'saleType', 'sroItemSerialNo'
-      ],
-      fieldDescriptions: {
-        // Master data fields
-        invoiceType: 'Type of invoice (e.g., SALES, PURCHASE)',
-        invoiceDate: 'Date of invoice (YYYY-MM-DD format)',
-        buyerNTNCNIC: 'Buyer NTN or CNIC number',
-        buyerBusinessName: 'Buyer business name',
-        buyerProvince: 'Buyer province/state',
-        buyerAddress: 'Buyer complete address',
-        buyerRegistrationType: 'REGISTERED or UNREGISTERED',
-        invoiceRefNo: 'Unique invoice reference number',
-        scenarioId: 'Scenario ID (numeric)',
-        
-        // Item details fields
-        hsCode: 'HS Code for the product',
-        productDescription: 'Description of the product',
-        rate: 'Unit rate/price (numeric)',
-        uoM: 'Unit of measurement (PCS, KG, L, etc.)',
-        quantity: 'Quantity (numeric)',
-        totalValues: 'Total value (rate × quantity)',
-        valueSalesExcludingST: 'Sales value excluding sales tax',
-        fixedNotifiedValueOrRetailPrice: 'Fixed notified value or retail price',
-        salesTaxApplicable: 'Yes or No',
-        salesTaxWithheldAtSource: 'Sales tax withheld at source (numeric)',
-        extraTax: 'Extra tax amount (numeric)',
-        furtherTax: 'Further tax amount (numeric)',
-        sroScheduleNo: 'SRO schedule number (numeric)',
-        fedPayable: 'FED payable amount (numeric)',
-        discount: 'Discount amount (numeric)',
-        saleType: 'Type of sale (Retail, Wholesale, Industrial)',
-        sroItemSerialNo: 'SRO item serial number'
-      },
-      sampleData: {
-        invoiceType: 'SALES',
-        invoiceDate: '2024-01-15',
-        buyerNTNCNIC: '1234567890123',
-        buyerBusinessName: 'ABC Trading Company',
-        buyerProvince: 'Sindh',
-        buyerAddress: '123 Main Street Karachi',
-        buyerRegistrationType: 'REGISTERED',
-        invoiceRefNo: 'INV-001',
-        scenarioId: '1',
-        hsCode: '1234.56',
-        productDescription: 'Office Supplies',
-        rate: '150.00',
-        uoM: 'PCS',
-        quantity: '10',
-        totalValues: '1500.00',
-        valueSalesExcludingST: '1500.00',
-        fixedNotifiedValueOrRetailPrice: '1500.00',
-        salesTaxApplicable: 'Yes',
-        salesTaxWithheldAtSource: '0.00',
-        extraTax: '0.00',
-        furtherTax: '0.00',
-        sroScheduleNo: '1',
-        fedPayable: '0.00',
-        discount: '0.00',
-        saleType: 'Retail',
-        sroItemSerialNo: '001'
-      },
+      requiredHeaders: requiredHeaders,
+      fieldDescriptions: fieldDescriptions,
+      sampleData: sampleData,
       notes: [
         'Each row represents one item. Multiple items for the same invoice should have the same invoiceRefNo.',
-        'Master data fields (invoiceType to scenarioId) should be identical for all items of the same invoice.',
+        request.user.fbrTokenType !== 'production' 
+          ? 'Master data fields (invoiceType to scenarioId) should be identical for all items of the same invoice.'
+          : 'Master data fields (invoiceType to invoiceRefNo) should be identical for all items of the same invoice.',
         'Item fields (hsCode to sroItemSerialNo) can vary for each item.',
         'Date format should be YYYY-MM-DD.',
         'Numeric fields should not contain currency symbols or commas.',
-        'Boolean fields (salesTaxApplicable) should be "Yes" or "No".'
+        'Rate field can be a percentage (e.g., "18%") or decimal (e.g., 0.18) - decimals will be converted to percentage format.',
+        'Boolean fields (salesTaxApplicable) should be "Yes" or "No".',
+        'All items with the same invoiceRefNo must have identical buyerBusinessName and buyerNTNCNIC values.',
+        'Optional fields (extraTax, furtherTax, sroScheduleNo, fedPayable) can be left empty and will default to 0.',
+        'All mandatory fields must have values - empty values will cause validation errors.'
       ]
     };
     
