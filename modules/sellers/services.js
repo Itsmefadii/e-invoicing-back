@@ -30,6 +30,7 @@ export const createSellerService = async (req) => {
             postalCode: seller.postalCode,
             businessPhone: seller.businessPhone,
             businessEmail: seller.businessEmail,
+            fbrTokenType: seller.fbrTokenType || 'Sandbox',
             fbrSandBoxToken: seller.fbrSandBoxToken,
             fbrProdToken: seller.fbrProdToken,
             isActive: true

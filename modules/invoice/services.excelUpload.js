@@ -307,7 +307,7 @@ export function parseExcelFile(fileBuffer, user) {
         totalValues: parseFloat(rowData.totalValues),
         valueSalesExcludingST: parseFloat(rowData.valueSalesExcludingST),
         fixedNotifiedValueOrRetailPrice: parseFloat(rowData.fixedNotifiedValueOrRetailPrice),
-         salesTaxApplicable: rowData.salesTaxApplicable === 'Yes' || rowData.salesTaxApplicable === true || rowData.salesTaxApplicable === 1,
+         salesTaxApplicable: parseFloat(rowData.salesTaxApplicable),
         salesTaxWithheldAtSource: parseFloat(rowData.salesTaxWithheldAtSource || 0),
         // Optional fields - handle empty values properly
         extraTax: rowData.extraTax && rowData.extraTax.toString().trim() !== '' ? parseFloat(rowData.extraTax) : 0,
