@@ -256,6 +256,14 @@ export async function postInvoiceService(request, invoiceIds) {
         }
       } else if (statusCode === "00" && status === "Valid") {
         console.log(`Invoice ${row[i].id} validation successful`);
+
+        await InvoiceItemModel.update({
+          error: null,
+        }, {
+          where: {
+            invoiceId: row[i].id
+          }
+        })
         
         await InvoiceModel.update({
           status: "Submitted",
