@@ -291,7 +291,7 @@ export function parseExcelFile(fileBuffer, user) {
          
          // Only include scenarioId for non-production users
          if (user.fbrTokenType !== 'production') {
-           masterData.scenarioId = parseInt(rowData.scenarioId);
+           masterData.scenarioId = rowData.scenarioId;
          }
          
          invoiceGroups[invoiceRefNo].master = masterData;
