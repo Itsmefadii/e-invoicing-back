@@ -97,7 +97,7 @@ export async function createInvoiceHandler(request, reply) {
     return sendSuccess(reply, data, 'Invoice created successfully');
   } catch (error) {
     console.error('Create invoice error:', error);
-    return sendError(reply, 'Failed to create invoice. Please try again later.');
+    return sendError(reply, error.message);
   }
 }
 
