@@ -8,6 +8,7 @@ import userRoutes from './modules/user/routes.js';
 import menuRoutes from './modules/menu/routes.js';
 import { systemConfigsRoutes } from './modules/systemConfigs/routes.js';
 import { sellersRoutes } from './modules/sellers/routes.js';
+import emailRoutes from './modules/email/routes.js';
 
 export function allRoutes(fastify, options, done) {
   fastify.register(invoiceRoutes, { prefix: '/invoice' });
@@ -17,6 +18,7 @@ export function allRoutes(fastify, options, done) {
   fastify.register(menuRoutes, { prefix: '/menu' });
   fastify.register(systemConfigsRoutes, { prefix: '/system-configs' });
   fastify.register(sellersRoutes, { prefix: '/sellers' });
+  fastify.register(emailRoutes, { prefix: '/email' });
   done();
 }
 
